@@ -740,12 +740,33 @@ select.fc option{background:var(--d3)}
         <button onclick="closeCustomerForm()" style="background:none;border:none;color:var(--wh3);font-size:1.4rem;cursor:pointer;padding:.2rem .4rem;line-height:1;border-radius:3px" onmouseover="this.style.color='var(--wh)'" onmouseout="this.style.color='var(--wh3)'">✕</button>
       </div>
       <input type="hidden" id="cn-edit-id" value="">
+
+      <div class="fg" style="margin-bottom:.65rem"><label>拠点</label><select class="fc" id="cn-br"><option>仙台</option><option>京都</option></select></div>
+
       <div class="fg" style="margin-bottom:.65rem"><label>店舗名 *</label><input class="fc" id="cn-name" placeholder="例：Sclass"></div>
       <div class="fg" style="margin-bottom:.65rem"><label>フリガナ</label><input class="fc" id="cn-kana" placeholder="例：エスクラス"></div>
-      <div class="fg" style="margin-bottom:.65rem"><label>拠点</label><select class="fc" id="cn-br"><option>仙台</option><option>京都</option></select></div>
-      <div class="fg" style="margin-bottom:.65rem"><label>エリア</label><input class="fc" id="cn-area" placeholder="例：秋田県秋田市"></div>
-      <div class="fg" style="margin-bottom:.65rem"><label>担当者名</label><input class="fc" id="cn-staff" placeholder="担当スタッフ名"></div>
-      <div class="fg" style="margin-bottom:.65rem"><label>電話番号</label><input class="fc" id="cn-tel" placeholder="090-xxxx-xxxx" type="tel"></div>
+      <div class="fg" style="margin-bottom:.65rem"><label>店舗電話番号</label><input class="fc" id="cn-tel" placeholder="022-xxxx-xxxx" type="tel"></div>
+
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:.8rem;margin-bottom:.65rem">
+        <div style="font-size:.68rem;color:var(--gold);margin-bottom:.5rem">👑 代表者</div>
+        <div class="fg" style="margin-bottom:.4rem"><label style="font-size:.65rem;color:var(--wh2)">代表者名</label><input class="fc" id="cn-owner" placeholder="例：山田 太郎"></div>
+        <div class="fg"><label style="font-size:.65rem;color:var(--wh2)">代表者電話番号</label><input class="fc" id="cn-owner-tel" placeholder="090-xxxx-xxxx" type="tel"></div>
+      </div>
+
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:.8rem;margin-bottom:.65rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+          <div style="font-size:.68rem;color:var(--gold)">👤 担当者</div>
+          <button type="button" onclick="addContactRow()" style="background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.35);color:var(--gold);font-size:.65rem;padding:.15rem .6rem;cursor:pointer;border-radius:3px">＋追加</button>
+        </div>
+        <div id="cn-contacts-list"></div>
+      </div>
+
+      <div class="fg" style="margin-bottom:.65rem">
+        <label>🏢 弊社担当</label>
+        <select class="fc" id="cn-staff">
+          <option value="">-- 選択してください --</option>
+        </select>
+      </div>
       <!-- 住所 -->
       <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:.8rem;margin-bottom:.65rem">
         <div style="font-size:.68rem;color:var(--gold);margin-bottom:.5rem">📍 住所</div>
@@ -3191,13 +3212,19 @@ function submitCustomer(){
   if(!nm){toast('店舗名を入力してください');return;}
   const bankItems=[...document.querySelectorAll('.cn-bankname-item')].map(el=>el.value.trim()).filter(Boolean);
   const sponsorEnabled=document.getElementById('cn-sponsor-enabled')?.value==='1';
+  const contacts=[...document.querySelectorAll('.cn-contact-row')].map(el=>({
+    name:(el.querySelector('.cn-contact-name')?.value||'').trim(),
+    tel:"'"+(el.querySelector('.cn-contact-tel')?.value||'').trim()
+  })).filter(c=>c.name||c.tel);
   const data={
     id:editId||Date.now(),name:nm,
     kana:document.getElementById('cn-kana')?.value.trim()||'',
     branch:document.getElementById('cn-br').value,
-    area:document.getElementById('cn-area').value,
-    staff:document.getElementById('cn-staff').value,
-    tel:document.getElementById('cn-tel').value,
+    tel:"'"+document.getElementById('cn-tel').value.trim(),
+    owner:document.getElementById('cn-owner')?.value.trim()||'',
+    ownerTel:"'"+(document.getElementById('cn-owner-tel')?.value.trim()||''),
+    contacts,
+    staff:document.getElementById('cn-staff').value.trim(),
     zip:document.getElementById('cn-zip')?.value.trim()||'',
     pref:document.getElementById('cn-pref')?.value.trim()||'',
     city:document.getElementById('cn-city')?.value.trim()||'',
@@ -3230,6 +3257,10 @@ function openCustomerForm(){
   const panel=document.getElementById('cst-cn');
   if(!panel)return;
   panel.style.display='block';
+  // 弊社担当プルダウンをメンバーから初期化
+  initStaffSelect();
+  // 担当者リスト初期化
+  if(!document.querySelector('.cn-contact-row'))renderContactsList([]);
   // 協賛商品プルダウンをPRODSで初期化
   const sp=document.getElementById('cn-sponsor-product');
   if(sp && sp.options.length<=1){PRODS.forEach(p=>{const o=document.createElement('option');o.value=o.textContent=p;sp.appendChild(o);});}
@@ -3257,16 +3288,18 @@ function clearCustomerForm(){
   const t=document.getElementById('cn-form-title');if(t)t.textContent='🏪 顧客新規登録';
   const b=document.getElementById('cn-submit-btn');if(b)b.textContent='顧客を登録する';
   const ei=document.getElementById('cn-edit-id');if(ei)ei.value='';
-  ['cn-name','cn-kana','cn-area','cn-staff','cn-tel','cn-line','cn-lineuid','cn-invname','cn-note','cn-referrer','cn-sponsor-trigger','cn-zip','cn-pref','cn-city','cn-addr1','cn-addr2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['cn-name','cn-kana','cn-tel','cn-owner','cn-owner-tel','cn-line','cn-lineuid','cn-invname','cn-note','cn-referrer','cn-sponsor-trigger','cn-zip','cn-pref','cn-city','cn-addr1','cn-addr2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const zipMsg=document.getElementById('cn-zip-msg');if(zipMsg)zipMsg.textContent='';
   const br=document.getElementById('cn-br');if(br)br.value='仙台';
   const rt=document.getElementById('cn-rate');if(rt)rt.value='7';
   const se=document.getElementById('cn-sponsor-enabled');if(se)se.value='0';
+  const sf=document.getElementById('cn-staff');if(sf)sf.value='';
   // 協賛商品プルダウンを初期化
   const sp=document.getElementById('cn-sponsor-product');
   if(sp){sp.innerHTML='<option value="">全商品</option>';PRODS.forEach(p=>{const o=document.createElement('option');o.value=o.textContent=p;sp.appendChild(o);});}
   toggleSponsorDetail();
   renderBankNamesList([]);
+  renderContactsList([]);
 }
 
 function editCustomer(id){
@@ -3279,9 +3312,11 @@ function editCustomer(id){
   document.getElementById('cn-name').value=cu.name||'';
   if(document.getElementById('cn-kana'))document.getElementById('cn-kana').value=cu.kana||'';
   document.getElementById('cn-br').value=cu.branch||'仙台';
-  document.getElementById('cn-area').value=cu.area||'';
-  document.getElementById('cn-staff').value=cu.staff||'';
-  document.getElementById('cn-tel').value=cu.tel||'';
+  document.getElementById('cn-tel').value=(cu.tel||'').replace(/^'+/,'');
+  if(document.getElementById('cn-owner'))document.getElementById('cn-owner').value=cu.owner||'';
+  if(document.getElementById('cn-owner-tel'))document.getElementById('cn-owner-tel').value=(cu.ownerTel||'').replace(/^'+/,'');
+  renderContactsList(cu.contacts||[]);
+  const sf=document.getElementById('cn-staff');if(sf)sf.value=cu.staff||'';
   document.getElementById('cn-line').value=cu.lineId||'';
   document.getElementById('cn-lineuid').value=cu.lineUid||'';
   document.getElementById('cn-invname').value=cu.invName||'';
@@ -3315,6 +3350,34 @@ function renderBankNamesList(names){
   const list=document.getElementById('cn-banknames-list');if(!list)return;
   if(!names||names.length===0)names=[''];
   list.innerHTML=names.map((n,i)=>`<div style="display:flex;gap:.4rem;align-items:center;margin-bottom:.3rem"><input class="fc cn-bankname-item" value="${n}" placeholder="振込時の名義" style="flex:1">${names.length>1?`<button type="button" onclick="removeBankNameRow(${i})" style="background:none;border:none;color:rgba(224,82,82,.7);cursor:pointer;font-size:1rem;padding:.1rem .3rem">✕</button>`:''}</div>`).join('');
+}
+
+// 担当者リスト（名前＋電話番号セット）
+function renderContactsList(contacts){
+  const list=document.getElementById('cn-contacts-list');if(!list)return;
+  if(!contacts||contacts.length===0)contacts=[{name:'',tel:''}];
+  list.innerHTML=contacts.map((c,i)=>`
+    <div class="cn-contact-row" style="display:flex;gap:.4rem;align-items:center;margin-bottom:.4rem">
+      <input class="fc cn-contact-name" value="${c.name||''}" placeholder="担当者名" style="flex:1">
+      <input class="fc cn-contact-tel" value="${(c.tel||'').replace(/^'+/,'')}" placeholder="090-xxxx-xxxx" type="tel" style="flex:1">
+      ${contacts.length>1?`<button type="button" onclick="removeContactRow(${i})" style="background:none;border:none;color:rgba(224,82,82,.7);cursor:pointer;font-size:1rem;padding:.1rem .3rem">✕</button>`:''}
+    </div>`).join('');
+}
+function addContactRow(){
+  const rows=[...document.querySelectorAll('.cn-contact-row')];
+  const items=rows.map(el=>({name:el.querySelector('.cn-contact-name')?.value||'',tel:el.querySelector('.cn-contact-tel')?.value||''}));
+  items.push({name:'',tel:''});renderContactsList(items);
+}
+function removeContactRow(idx){
+  let rows=[...document.querySelectorAll('.cn-contact-row')];
+  const items=rows.map(el=>({name:el.querySelector('.cn-contact-name')?.value||'',tel:el.querySelector('.cn-contact-tel')?.value||''}));
+  items.splice(idx,1);renderContactsList(items);
+}
+// 弊社担当プルダウンをメンバーリストから生成
+function initStaffSelect(){
+  const sel=document.getElementById('cn-staff');if(!sel)return;
+  const members=(S.members||[]).filter(m=>m.active!==false);
+  sel.innerHTML='<option value="">-- 選択してください --</option>'+members.map(m=>`<option value="${m.name}">${m.name}（${m.branch||''}）</option>`).join('');
 }
 
 function addBankNameRow(){
@@ -4425,14 +4488,19 @@ function saveOrderToSheet(o) {
 function saveCustomerToSheet(c) {
   const sh = getSheet('顧客');
   const d = sh.getDataRange().getValues();
+  const tel = String(c.tel||'').replace(/^'+/, ''); // 先頭シングルクォート除去
+  const row = [c.name||'',c.lineId||'',c.lineUid||'',c.rate||'',c.branch||'',c.area||'',c.staff||'',tel,c.invName||'',c.bankName||'',c.note||''];
   for (let i=1;i<d.length;i++) {
     if (d[i][0]===c.name) {
-      sh.getRange(i+1,1,1,11).setValues([[c.name||'',c.lineId||'',c.lineUid||'',c.rate||'',c.branch||'',c.area||'',c.staff||'',c.tel||'',c.invName||'',c.bankName||'',c.note||'']]);
+      sh.getRange(i+1,1,1,11).setValues([row]);
+      sh.getRange(i+1,8).setNumberFormat('@'); // 電話番号を文字列フォーマットに
       return;
     }
   }
   if (sh.getLastRow()===0) sh.appendRow(['店舗名','LINE ID','LINE UID','掛け率','拠点','エリア','担当者','電話','請求書宛名','振込名義','備考']);
-  sh.appendRow([c.name||'',c.lineId||'',c.lineUid||'',c.rate||'',c.branch||'',c.area||'',c.staff||'',c.tel||'',c.invName||'',c.bankName||'',c.note||'']);
+  const newRow = sh.getLastRow() + 1;
+  sh.appendRow(row);
+  sh.getRange(newRow,8).setNumberFormat('@'); // 電話番号を文字列フォーマットに
 }
 
 function updatePayInSheet(orderId, status) {
