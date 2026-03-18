@@ -4272,7 +4272,7 @@ function saveGasUrl(){
 async function testGas(){if(!S.gasUrl){toast('URLを設定してください');return;}try{const r=await fetch(S.gasUrl+'?action=ping',{mode:'no-cors'});document.getElementById('gas-status').textContent='✓ 接続OK';addSyncLog('接続テスト成功');toast('✅ 接続テスト成功！');}catch(e){// no-cors always succeeds if server is reachable
 document.getElementById('gas-status').textContent='✓ 接続OK';addSyncLog('接続テスト成功');toast('✅ 接続テスト成功！');}}
 async function syncGAS(){if(!S.gasUrl){toast('GAS URLが未設定です');return;}addSyncLog('同期開始');try{await fetch(S.gasUrl+'?action=getOrders',{mode:'no-cors'});addSyncLog('同期完了');toast('✅ GASと同期しました');}catch(e){addSyncLog('同期失敗: '+e.message);toast('同期に失敗しました');}}
-async function pushGAS(data){if(!S.gasUrl)return;try{await fetch(S.gasUrl,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain'},body:JSON.stringify(data)});addSyncLog('送信: '+data.action);}catch(e){addSyncLog('送信失敗: '+data.action);}}
+async function pushGAS(data){if(!S.gasUrl)return;try{const params=new URLSearchParams({payload:JSON.stringify(data)});await fetch(S.gasUrl+'?'+params.toString());addSyncLog('送信: '+data.action);}catch(e){addSyncLog('送信失敗: '+data.action);}}
 function sendLineNotify(message){
   // GAS URL が設定されている場合はGAS経由でLINE通知
   if(S.gasUrl){
@@ -4316,6 +4316,13 @@ function doGet(e) {
   if (action === 'getCustomers') {
     const rows = getSheet('顧客').getDataRange().getValues();
     return json({ customers: rows.slice(1).map(r => ({ name:r[0],lineId:r[1],lineUid:r[2],rate:r[3],branch:r[4],area:r[5],staff:r[6],tel:r[7],invName:r[8],bankName:r[9],note:r[10] })) });
+  }
+  if (e.parameter.payload) {
+    const body = JSON.parse(e.parameter.payload);
+    if (body.action === 'saveCustomer') { saveCustomerToSheet(body); return json({ok:true}); }
+    if (body.action === 'saveOrder') { saveOrderToSheet(body); return json({ok:true}); }
+    if (body.action === 'updatePayStatus') { updatePayInSheet(body.orderId, body.payStatus); return json({ok:true}); }
+    if (body.action === 'updateStock') { updateStockInSheet(body.branch, body.product, body.qty); return json({ok:true}); }
   }
   return json({ error: 'unknown action' });
 }
