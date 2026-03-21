@@ -3183,15 +3183,13 @@ async function linkUid(uid) {
 
 // UIDを引き継いで新規顧客登録フォームを開く
 function newCustomerFromUid(uid, displayName) {
-  // 顧客管理に移動してフォームを開く
+  window._pendingUid = uid; // 登録完了時にスプシから削除するために保持
   sv('customers', document.querySelector('.nb[onclick*="customers"]'));
   setTimeout(() => {
     openCustomerForm();
-    // LINE UIDをフォームにセット
     setTimeout(() => {
       const lineuidEl = document.getElementById('cn-lineuid');
       if (lineuidEl) lineuidEl.value = uid;
-      // LINE表示名をフォームタイトルにヒント表示
       const title = document.getElementById('cn-form-title');
       if (title && displayName) title.textContent = '🏪 新規顧客登録（' + displayName + '）';
       toast('LINE UIDをセットしました。店舗情報を入力してください');
@@ -3363,6 +3361,16 @@ function submitCustomer(){
   if(editId){const ex=S.customers.find(x=>String(x.id)===String(editId));if(ex){Object.assign(ex,data);isEdit=true;}else S.customers.push(data);}
   else{const ex=S.customers.find(x=>x.name===nm);if(ex){Object.assign(ex,data);isEdit=true;}else S.customers.push(data);}
   pushGAS({action:'saveCustomer',...data});
+  // 未登録UIDからの新規登録の場合、スプシ・UIから削除
+  if (window._pendingUid) {
+    const puid = window._pendingUid;
+    window._pendingUid = null;
+    if (S.gasUrl) {
+      fetch(S.gasUrl + '?action=deleteUid&uid=' + encodeURIComponent(puid)).catch(()=>{});
+    }
+    setTimeout(() => loadPendingUids(), 800);
+    addSyncLog('未登録UID削除: ' + puid.slice(0,10) + '...');
+  }
   refreshInvStoreSelect();
   toast(isEdit?'✅ 顧客情報を更新しました':'✅ 顧客を登録しました');
   closeCustomerForm();
