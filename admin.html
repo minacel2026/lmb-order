@@ -407,7 +407,7 @@ select.fc option{background:var(--d3)}
     <button class="nb" onclick="sv('stock',this)"><span class="ic">🍾</span><span>在庫管理</span></button>
     <button class="nb" onclick="sv('purchase',this)"><span class="ic">🚚</span><span>仕入管理</span></button>
     <button class="nb" onclick="sv('inventory',this)"><span class="ic">📦</span><span>棚卸計算</span></button>
-    <button class="nb" onclick="sv('customers',this)"><span class="ic">🏪</span><span>顧客管理</span></button>
+    <button class="nb" onclick="sv('customers',this)"><span class="ic">🏪</span><span>顧客管理</span><span id="uid-badge" style="display:none;background:var(--red);color:#fff;font-size:.55rem;padding:.1rem .35rem;border-radius:8px;margin-left:auto;font-weight:700"></span></button>
     <button class="nb" onclick="sv('payment',this)"><span class="ic">💴</span><span>集金管理</span></button>
     <button class="nb" onclick="sv('arsummary',this)"><span class="ic">📊</span><span>売掛サマリー</span></button>
     <button class="nb" onclick="sv('bank',this)"><span class="ic">🏦</span><span>通帳連携</span></button>
@@ -705,6 +705,16 @@ select.fc option{background:var(--d3)}
 <!-- CUSTOMERS -->
 <div id="v-customers" class="view">
   <div class="ptitle">顧客管理</div>
+
+  <!-- 未登録UID通知パネル -->
+  <div id="pending-uid-panel" style="display:none;background:rgba(224,82,82,.08);border:1px solid rgba(224,82,82,.35);border-radius:8px;padding:.8rem 1rem;margin-bottom:1rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem">
+      <div style="color:var(--red);font-size:.78rem;font-weight:700">🔔 未登録ユーザーからのメッセージ</div>
+      <button onclick="loadPendingUids()" style="background:none;border:1px solid rgba(255,255,255,.2);color:var(--wh2);font-size:.65rem;padding:.15rem .5rem;cursor:pointer;border-radius:3px">更新</button>
+    </div>
+    <div id="pending-uid-list"></div>
+  </div>
+
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:.5rem">
     <div style="font-size:.72rem;color:var(--wh3)">顧客一覧</div>
     <button onclick="openCustomerForm()" style="background:linear-gradient(135deg,rgba(201,168,76,.25),rgba(201,168,76,.12));border:1px solid rgba(201,168,76,.5);color:var(--gold);font-size:.78rem;padding:.45rem 1.2rem;cursor:pointer;border-radius:5px;font-weight:600;letter-spacing:.05em;white-space:nowrap">＋ 新規顧客登録</button>
@@ -798,7 +808,7 @@ select.fc option{background:var(--d3)}
         <div style="font-size:.68rem;color:var(--grn);margin-bottom:.6rem">🎁 協賛設定</div>
         <div class="fg" style="margin-bottom:.5rem"><label>協賛</label><select class="fc" id="cn-sponsor-enabled" onchange="toggleSponsorDetail()"><option value="0">なし</option><option value="1">あり</option></select></div>
         <div id="cn-sponsor-detail" style="display:none">
-          <div class="fg" style="margin-bottom:.5rem"><label>購入条件</label><div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"><input type="number" class="fc" id="cn-sponsor-trigger" placeholder="6" min="1" style="width:70px;text-align:center"><span style="color:var(--wh2);font-size:.8rem">本購入で協賛</span><input type="number" class="fc" id="cn-sponsor-reward" placeholder="1" min="1" style="width:60px;text-align:center"><span style="color:var(--wh2);font-size:.8rem">本</span></div></div>
+          <div class="fg" style="margin-bottom:.5rem"><label>購入条件</label><div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"><input type="number" class="fc" id="cn-sponsor-trigger" placeholder="0" min="0" style="width:70px;text-align:center"><span style="color:var(--wh2);font-size:.8rem">本購入で協賛</span><input type="number" class="fc" id="cn-sponsor-reward" placeholder="0" min="0" style="width:60px;text-align:center"><span style="color:var(--wh2);font-size:.8rem">本</span></div></div>
           <div class="fg"><label>対象商品 <span style="font-size:.6rem;color:var(--wh3)">空白＝全商品</span></label>
             <select class="fc" id="cn-sponsor-product">
               <option value="">全商品</option>
@@ -1505,7 +1515,7 @@ function sv(name,btn){
   // 拠点切替はダッシュボードのみ表示
   const sw=document.getElementById('branch-switcher');
   if(sw)sw.style.display=(name==='dash')?'':'none';
-  ({dash:renderDash,orders:renderOrders,stock:()=>requestAnimationFrame(renderStock),inventory:renderInventory,customers:renderCustomers,payment:renderPayment,arsummary:renderARSummary,bank:renderBank,invoice:renderInvoiceView,pdfmatch:()=>{renderPDFHistory();},purchase:renderPurchase,members:renderMembers,auditlog:renderAuditLog,gascode:renderGasCode}[name]||function(){})();
+  ({dash:renderDash,orders:renderOrders,stock:()=>requestAnimationFrame(renderStock),inventory:renderInventory,customers:()=>{renderCustomers();loadPendingUids();},payment:renderPayment,arsummary:renderARSummary,bank:renderBank,invoice:renderInvoiceView,pdfmatch:()=>{renderPDFHistory();},purchase:renderPurchase,members:renderMembers,auditlog:renderAuditLog,gascode:renderGasCode}[name]||function(){})();
 }
 
 function setBr(b,btn){
@@ -3109,6 +3119,77 @@ function renderLog(){
 }
 
 // ===== CUSTOMERS =====
+// ===== 未登録UID 半自動紐付け =====
+async function loadPendingUids() {
+  if (!S.gasUrl) return;
+  try {
+    const url = S.gasUrl + '?action=getPendingUids';
+    const r = await fetch(url, { mode: 'no-cors' });
+    // no-corsではレスポンスが読めないため、payloadで取得
+    const r2 = await fetch(S.gasUrl + '?payload=' + encodeURIComponent(JSON.stringify({action:'getPendingUids'})));
+    const d = await r2.json();
+    const pending = (d.pending || []).filter(p => p.status !== '設定済み');
+    const badge = document.getElementById('uid-badge');
+    const panel = document.getElementById('pending-uid-panel');
+    const list  = document.getElementById('pending-uid-list');
+    if (!pending.length) {
+      if (badge) badge.style.display = 'none';
+      if (panel) panel.style.display = 'none';
+      return;
+    }
+    if (badge) { badge.textContent = pending.length; badge.style.display = 'inline-block'; }
+    if (panel) panel.style.display = 'block';
+    if (list) {
+      list.innerHTML = pending.map(p => `
+        <div style="background:rgba(255,255,255,.04);border-radius:6px;padding:.6rem .8rem;margin-bottom:.5rem">
+          <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;flex-wrap:wrap">
+            <span style="color:var(--wh1);font-size:.78rem;font-weight:600">${p.name||'名前不明'}</span>
+            <span style="font-size:.65rem;color:var(--wh3)">${p.date||''}</span>
+            <span style="font-size:.65rem;color:var(--wh3);word-break:break-all">${p.uid}</span>
+          </div>
+          <div style="font-size:.7rem;color:var(--wh2);margin-bottom:.5rem">メッセージ：${p.message||''}</div>
+          <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+            <select id="link-sel-${p.uid.replace(/[^a-zA-Z0-9]/g,'')}" class="fc" style="flex:1;font-size:.72rem;padding:.3rem .5rem">
+              <option value="">── 顧客を選択 ──</option>
+              ${S.customers.map(c=>`<option value="${c.name}">${c.name}（${c.branch||''}）</option>`).join('')}
+            </select>
+            <button onclick="linkUid('${p.uid}')" style="background:rgba(82,183,136,.15);border:1px solid rgba(82,183,136,.4);color:var(--grn);font-size:.72rem;padding:.3rem .8rem;cursor:pointer;border-radius:4px;white-space:nowrap">✅ 紐付け</button>
+            <button onclick="skipUid('${p.uid}')" style="background:none;border:1px solid rgba(255,255,255,.15);color:var(--wh3);font-size:.65rem;padding:.3rem .6rem;cursor:pointer;border-radius:4px">スキップ</button>
+          </div>
+        </div>`).join('');
+    }
+  } catch(e) {
+    console.log('loadPendingUids error:', e);
+  }
+}
+
+async function linkUid(uid) {
+  const selId = 'link-sel-' + uid.replace(/[^a-zA-Z0-9]/g,'');
+  const sel   = document.getElementById(selId);
+  if (!sel || !sel.value) { toast('顧客を選択してください'); return; }
+  const store = sel.value;
+  try {
+    const url = S.gasUrl + '?action=linkUid&uid=' + encodeURIComponent(uid) + '&store=' + encodeURIComponent(store);
+    await fetch(url, { mode: 'no-cors' });
+    // ローカルのcustomersにも反映
+    const c = S.customers.find(x => x.name === store);
+    if (c) c.lineUid = uid;
+    toast('✅ ' + store + ' にLINE UIDを紐付けました');
+    setTimeout(() => loadPendingUids(), 800);
+    addSyncLog('UID紐付け: ' + store + ' → ' + uid.slice(0,10) + '...');
+  } catch(e) {
+    toast('❌ 紐付けに失敗しました');
+  }
+}
+
+async function skipUid(uid) {
+  // スプシの状態は変えずUIから一時的に非表示
+  const selId = 'link-sel-' + uid.replace(/[^a-zA-Z0-9]/g,'');
+  const row   = document.getElementById(selId)?.closest('div[style]');
+  if (row) row.style.display = 'none';
+  toast('スキップしました');
+}
+
 function renderCustomers(){
   const kw=(document.getElementById('cst-kw')?.value||'').toLowerCase();
   const br=document.getElementById('cst-br')?.value||'';
