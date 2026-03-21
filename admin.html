@@ -3200,11 +3200,25 @@ function newCustomerFromUid(uid, displayName) {
 }
 
 async function skipUid(uid) {
-  // スプシの状態は変えずUIから一時的に非表示
+  // スプシからも削除してUIからも消す
+  try {
+    if (S.gasUrl) {
+      const url = S.gasUrl + '?action=deleteUid&uid=' + encodeURIComponent(uid);
+      await fetch(url);
+    }
+  } catch(e) {}
   const selId = 'link-sel-' + uid.replace(/[^a-zA-Z0-9]/g,'');
-  const row   = document.getElementById(selId)?.closest('div[style]');
-  if (row) row.style.display = 'none';
-  toast('スキップしました');
+  const row   = document.getElementById(selId)?.closest('div[style*="background"]');
+  if (row) row.remove();
+  // パネル内の件数を再チェック
+  const remaining = document.querySelectorAll('#pending-uid-list div[style*="background"]');
+  if (!remaining.length) {
+    document.getElementById('pending-uid-panel').style.display = 'none';
+    document.getElementById('uid-badge').style.display = 'none';
+  } else {
+    document.getElementById('uid-badge').textContent = remaining.length;
+  }
+  toast('削除しました');
 }
 
 function renderCustomers(){
@@ -4615,16 +4629,28 @@ function doGet(e) {
     for (let i = 1; i < d.length; i++) {
       if (d[i][0] === storeName) {
         sh.getRange(i+1, 10).setValue(uid); // J列: LINE UID
-        // 未登録UIDシートのステータスを「設定済み」に更新
+        // 未登録UIDシートから該当行を削除
         const ps = getSheet('未登録UID');
         const pd = ps.getDataRange().getValues();
         for (let j = 1; j < pd.length; j++) {
-          if (pd[j][1] === uid) { ps.getRange(j+1, 5).setValue('設定済み'); break; }
+          if (pd[j][1] === uid) { ps.deleteRow(j+1); break; }
         }
         return json({ ok: true });
       }
     }
     return json({ error: '顧客が見つかりません' });
+  }
+
+  // 未登録UIDをスプシから削除
+  if (action === 'deleteUid') {
+    const uid = e.parameter.uid;
+    if (!uid) return json({ error: 'uid required' });
+    const ps = getSheet('未登録UID');
+    const pd = ps.getDataRange().getValues();
+    for (let j = 1; j < pd.length; j++) {
+      if (pd[j][1] === uid) { ps.deleteRow(j+1); break; }
+    }
+    return json({ ok: true });
   }
 
   return json({ error: 'unknown action' });
