@@ -3152,6 +3152,7 @@ async function loadPendingUids() {
               ${S.customers.map(c=>`<option value="${c.name}">${c.name}（${c.branch||''}）</option>`).join('')}
             </select>
             <button onclick="linkUid('${p.uid}')" style="background:rgba(82,183,136,.15);border:1px solid rgba(82,183,136,.4);color:var(--grn);font-size:.72rem;padding:.3rem .8rem;cursor:pointer;border-radius:4px;white-space:nowrap">✅ 紐付け</button>
+            <button onclick="newCustomerFromUid('${p.uid}','${p.name||''}')" style="background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.4);color:var(--gold);font-size:.72rem;padding:.3rem .8rem;cursor:pointer;border-radius:4px;white-space:nowrap">＋ 新規登録</button>
             <button onclick="skipUid('${p.uid}')" style="background:none;border:1px solid rgba(255,255,255,.15);color:var(--wh3);font-size:.65rem;padding:.3rem .6rem;cursor:pointer;border-radius:4px">スキップ</button>
           </div>
         </div>`).join('');
@@ -3178,6 +3179,24 @@ async function linkUid(uid) {
   } catch(e) {
     toast('❌ 紐付けに失敗しました');
   }
+}
+
+// UIDを引き継いで新規顧客登録フォームを開く
+function newCustomerFromUid(uid, displayName) {
+  // 顧客管理に移動してフォームを開く
+  sv('customers', document.querySelector('.nb[onclick*="customers"]'));
+  setTimeout(() => {
+    openCustomerForm();
+    // LINE UIDをフォームにセット
+    setTimeout(() => {
+      const lineuidEl = document.getElementById('cn-lineuid');
+      if (lineuidEl) lineuidEl.value = uid;
+      // LINE表示名をフォームタイトルにヒント表示
+      const title = document.getElementById('cn-form-title');
+      if (title && displayName) title.textContent = '🏪 新規顧客登録（' + displayName + '）';
+      toast('LINE UIDをセットしました。店舗情報を入力してください');
+    }, 300);
+  }, 100);
 }
 
 async function skipUid(uid) {
