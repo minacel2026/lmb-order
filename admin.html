@@ -3120,6 +3120,26 @@ function renderLog(){
 
 // ===== CUSTOMERS =====
 // ===== 未登録UID 半自動紐付け =====
+// バックグラウンドでバッジだけ更新（タブを開かなくても動く）
+async function checkPendingUidBadge() {
+  if (!S.gasUrl) return;
+  try {
+    const r = await fetch(S.gasUrl + '?action=getPendingUids');
+    const d = await r.json();
+    const pending = (d.pending || []).filter(p => p.status !== '設定済み');
+    const badge = document.getElementById('uid-badge');
+    if (!badge) return;
+    if (pending.length > 0) {
+      badge.textContent = pending.length;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) {}
+  // 3分おきに自動更新
+  setTimeout(() => checkPendingUidBadge(), 3 * 60 * 1000);
+}
+
 async function loadPendingUids() {
   if (!S.gasUrl) return;
   try {
@@ -4257,6 +4277,8 @@ function doLogin(){
   applyPermissions();
   auditLog('ログイン', `${member.name} がログインしました`, 'ログイン・ログアウト', '🔑', {email});
   renderDash();
+  // ログイン後バックグラウンドで未登録UID件数を確認してバッジ表示
+  setTimeout(() => checkPendingUidBadge(), 2000);
 }
 
 function doLogout(){
