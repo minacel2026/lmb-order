@@ -2211,6 +2211,13 @@ function editPrice2(p){
   PROD_LIST[idx].price2=n;PRICE2[p]=n;
   renderStock();toast(`✅ ${p} の旧販売価格を ¥${n.toLocaleString()} に更新しました`);
 }
+async function deleteCustomer(id,name){
+  if(!confirm(`「${name}」を削除しますか？\nスプレッドシートからも行が削除されます。`))return;
+  S.customers=S.customers.filter(x=>String(x.id)!==String(id));
+  renderCustomers();
+  if(S.gasUrl){try{await fetch(S.gasUrl+'?action=deleteCustomer&name='+encodeURIComponent(name));addSyncLog('顧客削除: '+name);}catch(e){}}
+  toast(`「${name}」を削除しました`);
+}
 function swTab(grp,id,el){
   try{
     let view=document.getElementById('v-'+grp);
@@ -2697,7 +2704,7 @@ function autofillCustomer(){
     if(cust.area && !document.getElementById('f-area').value) document.getElementById('f-area').value = cust.area;
     if(cust.staff && !document.getElementById('f-staff').value) document.getElementById('f-staff').value = cust.staff;
     if(cust.tel && !document.getElementById('f-tel').value) document.getElementById('f-tel').value = cust.tel;
-    // 掛け率を自動セット（商品別 productRates → 共通 rate の順で参照）
+    // 掛け率を自動セット（productRates → rate の順）
     const pr=cust.productRates;
     const selProd=document.getElementById('add-prod')?.value;
     let autoRate=cust.rate||'';
@@ -3306,13 +3313,14 @@ function renderCustomers(){
       <td style="color:var(--wh2);white-space:nowrap;font-size:.75rem">${c.branch||'-'}</td>
       <td style="color:var(--wh2);white-space:nowrap;font-size:.75rem;max-width:130px;overflow:hidden;text-overflow:ellipsis">${c.area||'-'}</td>
       <td style="color:var(--wh2);white-space:nowrap;font-size:.75rem">${c.staff||'-'}</td>
-      <td style="white-space:nowrap"><span style="background:rgba(201,168,76,.18);color:var(--gold);padding:2px 7px;border-radius:10px;font-weight:700;font-size:.7rem">${c.rate||'7'}掛</span></td>
+      <td style="white-space:nowrap"><span style="background:rgba(201,168,76,.18);color:var(--gold);padding:2px 7px;border-radius:10px;font-weight:700;font-size:.7rem">${(()=>{if(c.productRates&&Array.isArray(c.productRates)){const r=c.productRates.find(x=>x.rate);return r?r.rate+'掛':'設定済';}return (c.rate||'7')+'掛';})()}</span></td>
       <td style="color:var(--wh3);font-size:.72rem;white-space:nowrap">${c.referrer||'-'}</td>
       <td style="text-align:right;white-space:nowrap;color:${unpaid?'var(--red)':'var(--wh3)'};font-variant-numeric:tabular-nums;font-weight:${unpaid?700:400};font-size:.78rem">${unpaid?'¥'+fmt(unpaid):'-'}</td>
       <td style="text-align:center;white-space:nowrap">${c.sponsorEnabled?`<span style="color:var(--grn);font-size:.68rem">🎁${sbal.pts}本</span>`:'<span style="color:var(--wh3);font-size:.7rem">-</span>'}</td>
       <td style="white-space:nowrap">
         <button onclick="openCustomer('${c.id}')" style="background:rgba(201,168,76,.14);border:1px solid rgba(201,168,76,.35);color:var(--gold);font-size:.65rem;padding:.18rem .6rem;cursor:pointer;border-radius:3px">詳細</button>
         <button onclick="editCustomer('${c.id}')" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.13);color:var(--wh2);font-size:.65rem;padding:.18rem .5rem;cursor:pointer;border-radius:3px;margin-left:.2rem">編集</button>
+        <button onclick="deleteCustomer('${c.id}','${c.name}')" style="background:rgba(224,82,82,.1);border:1px solid rgba(224,82,82,.35);color:var(--red);font-size:.65rem;padding:.18rem .5rem;cursor:pointer;border-radius:3px;margin-left:.2rem">削除</button>
       </td>
     </tr>`;
   }).join('');
@@ -4777,6 +4785,17 @@ function doGet(e) {
   }
 
   // 未登録UIDをスプシから削除
+  if (action === 'deleteCustomer') {
+    var nm = e.parameter.name;
+    if (!nm) return json({ error: 'name required' });
+    var sh = getSheet('顧客');
+    var d  = sh.getDataRange().getValues();
+    for (var i = 1; i < d.length; i++) {
+      if (d[i][0] === nm) { sh.deleteRow(i+1); break; }
+    }
+    return json({ ok: true });
+  }
+
   if (action === 'deleteUid') {
     const uid = e.parameter.uid;
     if (!uid) return json({ error: 'uid required' });
