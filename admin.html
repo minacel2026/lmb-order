@@ -3320,7 +3320,7 @@ function renderCustomers(){
 }
 
 function openCustomer(id){
-  const c=S.customers.find(x=>String(x.id)===String(id));if(!o)return;
+  const c=S.customers.find(x=>String(x.id)===String(id));if(!c)return;
   const orders=S.orders.filter(o=>o.store===c.name);
   const total=orders.reduce((s,o)=>s+calcAmt(o),0);
   const unpaid=orders.filter(o=>o.payStatus!=='集金済み').reduce((s,o)=>s+calcAmt(o),0);
