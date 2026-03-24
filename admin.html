@@ -533,7 +533,7 @@ select.fc option{background:var(--d3)}
         <div class="fg"><label>支払方法</label><select class="fc" id="f-paymethod"><option>現金</option><option>売掛(銀行)</option><option>売掛(現金)</option><option>代引き</option><option>マルシェ売掛</option><option>オーク売掛</option></select></div>
       </div>
       <div class="frow">
-        <div class="fg"><label>売値条件</label><select class="fc" id="f-cond"><option>7</option><option>6</option><option>5.5</option><option>5</option><option>4.5</option><option>4</option></select></div>
+        <div class="fg"><label>売値条件</label><select class="fc" id="f-cond" onchange="calcTotal()"><option>7</option><option>6</option><option>5.5</option><option>5</option><option>4.5</option><option>4</option></select></div>
         <div class="fg"><label>TAX</label><select class="fc" id="f-tax" onchange="calcTotal()"><option value="taxあり">taxあり</option><option value="taxカット">taxカット</option></select></div>
         <div class="fg"><label>支払状況</label><select class="fc" id="f-payst"><option>未収</option><option>売掛</option><option>集金済み</option></select></div>
         <div class="fg"><label>備考</label><input class="fc" id="f-note" placeholder="LINEからのメモ等"></div>
@@ -2549,6 +2549,7 @@ function updateAddPrice(){
   const qty = parseInt(document.getElementById('add-qty').value)||0;
   const branch = document.getElementById('f-br').value;
   const tax = document.getElementById('f-tax').value;
+  const cond = parseFloat(document.getElementById('f-cond')?.value||'10');
 
   if(!prod){ 
     document.getElementById('add-price-disp').textContent = '¥0';
@@ -2556,7 +2557,7 @@ function updateAddPrice(){
     return;
   }
 
-  let price = PRICE[prod]||0;
+  let price = Math.round((PRICE[prod]||0) * cond / 10);
   if(tax === 'taxあり') price = Math.round(price * 1.1);
   document.getElementById('add-price-disp').textContent = '¥' + fmt(price * qty);
 
@@ -2648,9 +2649,10 @@ function renderOrderLines(){
 
 function calcTotal(){
   const tax = document.getElementById('f-tax')?.value||'taxあり';
+  const cond = parseFloat(document.getElementById('f-cond')?.value||'10');
   let t = 0;
   orderLines.forEach(l => {
-    let pr = PRICE[l.prod]||0;
+    let pr = Math.round((PRICE[l.prod]||0) * cond / 10);
     if(tax === 'taxあり') pr = Math.round(pr * 1.1);
     t += pr * l.qty;
   });
@@ -2667,9 +2669,20 @@ function autofillCustomer(){
   const rateEl = document.getElementById('f-cond');
   const badge = document.getElementById('f-cust-badge');
   if(cust){
-    if(cust.area && !document.getElementById('f-area').value) document.getElementById('f-area').value = cust.area;
-    if(cust.staff && !document.getElementById('f-staff').value) document.getElementById('f-staff').value = cust.staff;
-    if(cust.tel && !document.getElementById('f-tel').value) document.getElementById('f-tel').value = cust.tel;
+    if(cust.area  && !document.getElementById('f-area').value)     document.getElementById('f-area').value = cust.area;
+    if(cust.staff && !document.getElementById('f-staff').value)    document.getElementById('f-staff').value = cust.staff;
+    if(cust.tel   && !document.getElementById('f-tel').value)      document.getElementById('f-tel').value = cust.tel;
+    if(cust.zip   && !document.getElementById('f-zip').value)      document.getElementById('f-zip').value = cust.zip;
+    const addr1 = [cust.pref, cust.city, cust.addr1].filter(Boolean).join('');
+    if(addr1      && !document.getElementById('f-address1').value) document.getElementById('f-address1').value = addr1;
+    if(cust.addr2 && !document.getElementById('f-address2').value) document.getElementById('f-address2').value = cust.addr2;
+    if(cust.contacts && !document.getElementById('f-contact').value){
+      try{
+        const cl = typeof cust.contacts === 'string' ? JSON.parse(cust.contacts) : cust.contacts;
+        if(cl && cl[0]?.name) document.getElementById('f-contact').value = cl[0].name;
+        if(cl && cl[0]?.tel && !document.getElementById('f-tel').value) document.getElementById('f-tel').value = cl[0].tel;
+      }catch(e){}
+    }
     // 掛け率を自動セット
     if(cust.rate && rateEl){
       rateEl.value = cust.rate;
@@ -3295,18 +3308,14 @@ async function deleteCustomer(id, name){
   S.customers = S.customers.filter(x => String(x.id) !== String(id));
   renderCustomers();
   if(S.gasUrl){
-    try{
-      const url = S.gasUrl + '?action=deleteCustomer&name=' + encodeURIComponent(name);
-      await fetch(url);
-      addSyncLog('顧客削除: ' + name);
-    }catch(e){ addSyncLog('顧客削除エラー: ' + name); }
+    try{ await fetch(S.gasUrl + '?action=deleteCustomer&name=' + encodeURIComponent(name)); addSyncLog('顧客削除: ' + name); }catch(e){}
   }
   toast(`「${name}」を削除しました`);
   auditLog('顧客削除', `${AUTH.user?.name||'-'} が顧客「${name}」を削除`, '顧客', '🗑️', {name});
 }
 
 function openCustomer(id){
-  const c=S.customers.find(x=>String(x.id)===String(id));if(!c)return;
+  const c=S.customers.find(x=>String(x.id)===String(id));if(!o)return;
   const orders=S.orders.filter(o=>o.store===c.name);
   const total=orders.reduce((s,o)=>s+calcAmt(o),0);
   const unpaid=orders.filter(o=>o.payStatus!=='集金済み').reduce((s,o)=>s+calcAmt(o),0);
@@ -3418,8 +3427,6 @@ function openCustomerForm(){
   const panel=document.getElementById('cst-cn');
   if(!panel)return;
   panel.style.display='block';
-  // フォームを空欄にリセット
-  clearCustomerForm();
   // 弊社担当プルダウンをメンバーから初期化
   initStaffSelect();
   // 担当者リスト初期化
