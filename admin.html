@@ -568,7 +568,7 @@ select.fc option{background:var(--d3)}
           <label style="font-size:.65rem;color:var(--wh3);display:block;margin-bottom:.2rem">在庫</label>
           <div class="fc" id="add-stock-disp" style="background:rgba(255,255,255,.05);color:var(--wh2);display:flex;align-items:center">-</div>
         </div>
-        <button class="btn btn-g" onclick="addOrderLine()" style="padding:.45rem 1rem;white-space:nowrap">＋ 追加</button>
+        <button class="btn btn-g" onclick="addOrderLine()" style="padding:.45rem 1rem;white-space:nowrap">🛒 カートに入れる</button>
       </div>
 
       <!-- 追加済み商品リスト -->
@@ -2549,7 +2549,6 @@ function updateAddPrice(){
   const qty = parseInt(document.getElementById('add-qty').value)||0;
   const branch = document.getElementById('f-br').value;
   const tax = document.getElementById('f-tax').value;
-  const cond = parseFloat(document.getElementById('f-cond')?.value||'10');
 
   if(!prod){ 
     document.getElementById('add-price-disp').textContent = '¥0';
@@ -2557,6 +2556,7 @@ function updateAddPrice(){
     return;
   }
 
+  const cond = parseFloat(document.getElementById('f-cond')?.value||'10');
   let price = Math.round((PRICE[prod]||0) * cond / 10);
   if(tax === 'taxあり') price = Math.round(price * 1.1);
   document.getElementById('add-price-disp').textContent = '¥' + fmt(price * qty);
@@ -3315,7 +3315,7 @@ async function deleteCustomer(id, name){
 }
 
 function openCustomer(id){
-  const c=S.customers.find(x=>String(x.id)===String(id));if(!o)return;
+  const c=S.customers.find(x=>String(x.id)===String(id));if(!c)return;
   const orders=S.orders.filter(o=>o.store===c.name);
   const total=orders.reduce((s,o)=>s+calcAmt(o),0);
   const unpaid=orders.filter(o=>o.payStatus!=='集金済み').reduce((s,o)=>s+calcAmt(o),0);
