@@ -3283,14 +3283,32 @@ function renderCustomers(){
       <td style="white-space:nowrap">
         <button onclick="openCustomer('${c.id}')" style="background:rgba(201,168,76,.14);border:1px solid rgba(201,168,76,.35);color:var(--gold);font-size:.65rem;padding:.18rem .6rem;cursor:pointer;border-radius:3px">詳細</button>
         <button onclick="editCustomer('${c.id}')" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.13);color:var(--wh2);font-size:.65rem;padding:.18rem .5rem;cursor:pointer;border-radius:3px;margin-left:.2rem">編集</button>
+        <button onclick="deleteCustomer('${c.id}','${c.name}')" style="background:rgba(224,82,82,.1);border:1px solid rgba(224,82,82,.35);color:var(--red);font-size:.65rem;padding:.18rem .5rem;cursor:pointer;border-radius:3px;margin-left:.2rem">削除</button>
       </td>
     </tr>`;
   }).join('');
   grid.innerHTML=`<div style="overflow-x:auto"><table class="cust-table" style="min-width:700px"><thead><tr><th style="min-width:120px">店舗名・タグ</th><th>拠点</th><th>エリア</th><th>担当者</th><th>掛け率</th><th>紹介者</th><th style="text-align:right;white-space:nowrap">未収金額</th><th style="text-align:center">協賛残</th><th style="white-space:nowrap">操作</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
+async function deleteCustomer(id, name){
+  if(!confirm(`「${name}」を削除しますか？\nスプレッドシートからも行が削除されます。`)) return;
+  // ローカルから削除
+  S.customers = S.customers.filter(x => String(x.id) !== String(id));
+  renderCustomers();
+  // GASに削除リクエスト
+  if(S.gasUrl){
+    try{
+      const url = S.gasUrl + '?action=deleteCustomer&name=' + encodeURIComponent(name);
+      await fetch(url);
+      addSyncLog('顧客削除: ' + name);
+    }catch(e){ addSyncLog('顧客削除エラー: ' + name); }
+  }
+  toast(`「${name}」を削除しました`);
+  auditLog('顧客削除', `${AUTH.user?.name||'-'} が顧客「${name}」を削除`, '顧客', '🗑️', {name});
+}
+
 function openCustomer(id){
-  const c=S.customers.find(x=>String(x.id)===String(id));if(!c)return;
+  const c=S.customers.find(x=>String(x.id)===String(id));if(!o)return;
   const orders=S.orders.filter(o=>o.store===c.name);
   const total=orders.reduce((s,o)=>s+calcAmt(o),0);
   const unpaid=orders.filter(o=>o.payStatus!=='集金済み').reduce((s,o)=>s+calcAmt(o),0);
@@ -4669,6 +4687,18 @@ function doGet(e) {
       }
     }
     return json({ error: '顧客が見つかりません' });
+  }
+
+  // 顧客をスプシから削除（行ごと削除して詰める）
+  if (action === 'deleteCustomer') {
+    const name = e.parameter.name;
+    if (!name) return json({ error: 'name required' });
+    const sh = getSheet('顧客');
+    const d  = sh.getDataRange().getValues();
+    for (let i = 1; i < d.length; i++) {
+      if (d[i][0] === name) { sh.deleteRow(i+1); break; }
+    }
+    return json({ ok: true });
   }
 
   // 未登録UIDをスプシから削除
