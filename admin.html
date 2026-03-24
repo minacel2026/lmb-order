@@ -798,13 +798,14 @@ select.fc option{background:var(--d3)}
       <div class="fg" style="margin-bottom:.65rem"><label>LINE ID</label><input class="fc" id="cn-line" placeholder="LINE ID"></div>
       <div class="fg" style="margin-bottom:.65rem"><label>LINE UserID（LIFF認証用）</label><input class="fc" id="cn-lineuid" placeholder="U1234abcd..."></div>
       <div style="margin-bottom:.65rem">
-        <label style="font-size:.68rem;color:var(--gold);display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">💰 商品別掛率・TAX</label>
-        <div style="max-height:260px;overflow-y:auto;border:1px solid rgba(255,255,255,.1);border-radius:5px">
+        <label style="font-size:.68rem;color:var(--gold);margin-bottom:.4rem;display:block">💰 商品別掛率・TAX・価格</label>
+        <div style="max-height:290px;overflow-y:auto;border:1px solid rgba(255,255,255,.1);border-radius:5px">
           <table style="width:100%;border-collapse:collapse;font-size:.72rem" id="cn-rates-table">
-            <thead><tr style="background:var(--d3)">
+            <thead><tr style="background:var(--d3);position:sticky;top:0;z-index:1">
               <th style="padding:.3rem .5rem;color:var(--wh2);text-align:left">商品</th>
               <th style="padding:.3rem .5rem;color:var(--wh2);text-align:center">掛率</th>
               <th style="padding:.3rem .5rem;color:var(--wh2);text-align:center">TAX</th>
+              <th style="padding:.3rem .5rem;color:var(--wh2);text-align:center">価格</th>
             </tr></thead>
             <tbody id="cn-rates-body"></tbody>
           </table>
@@ -1416,6 +1417,7 @@ const PRODS = PROD_LIST.map(p=>p.key);
 const PRICE = Object.fromEntries(PROD_LIST.map(p=>[p.key, p.price]));
 const COST  = Object.fromEntries(PROD_LIST.map(p=>[p.key, p.cost]));
 const REORDER = Object.fromEntries(PROD_LIST.map(p=>[p.key, p.reorder]));
+const PRICE2  = Object.fromEntries(PROD_LIST.map(p=>[p.key, p.price2||null]));
 const IMG   = Object.fromEntries(PROD_LIST.map(p=>[p.key, p.img]));
 
 const S={
@@ -2196,6 +2198,19 @@ function editCost(p){
   renderStock();
   toast(`✅ ${p} の仕入単価を ¥${n.toLocaleString()} に更新しました`);
 }
+function editPrice2(p){
+  const cur=PRICE2[p];
+  const idx=PROD_LIST.findIndex(x=>x.key===p);
+  if(idx<0)return;
+  const v=prompt(`【${p}】の旧販売価格\n現在: ${cur!=null?'¥'+cur.toLocaleString():'未設定'}\n（削除は空欄でOK）`,'');
+  if(v===null)return;
+  const t=v.replace(/[^0-9]/g,'');
+  if(t===''){PROD_LIST[idx].price2=null;PRICE2[p]=null;renderStock();toast(`✅ ${p} の旧価格を削除しました`);return;}
+  const n=parseInt(t);
+  if(isNaN(n)||n<0){toast('⚠ 正しい金額を入力してください');return;}
+  PROD_LIST[idx].price2=n;PRICE2[p]=n;
+  renderStock();toast(`✅ ${p} の旧販売価格を ¥${n.toLocaleString()} に更新しました`);
+}
 function swTab(grp,id,el){
   try{
     let view=document.getElementById('v-'+grp);
@@ -2660,10 +2675,9 @@ function renderOrderLines(){
 
 function calcTotal(){
   const tax = document.getElementById('f-tax')?.value||'taxあり';
-  const cond = parseFloat(document.getElementById('f-cond')?.value||'10');
   let t = 0;
   orderLines.forEach(l => {
-    let pr = Math.round((PRICE[l.prod]||0) * cond / 10);
+    let pr = PRICE[l.prod]||0;
     if(tax === 'taxあり') pr = Math.round(pr * 1.1);
     t += pr * l.qty;
   });
@@ -2683,18 +2697,13 @@ function autofillCustomer(){
     if(cust.area && !document.getElementById('f-area').value) document.getElementById('f-area').value = cust.area;
     if(cust.staff && !document.getElementById('f-staff').value) document.getElementById('f-staff').value = cust.staff;
     if(cust.tel && !document.getElementById('f-tel').value) document.getElementById('f-tel').value = cust.tel;
-    // 掛け率を自動セット（商品別または共通）
-    const pr = cust.productRates;
-    const flatRate = cust.rate;
-    // 注文フォームの商品が選択されていれば商品別掛率を使う
-    const selProd = document.getElementById('add-prod')?.value;
-    let autoRate = flatRate || '7';
-    if(pr && Array.isArray(pr)){
-      const found = pr.find(x=>x.key===selProd);
-      if(found) autoRate = found.rate;
-    }
-    if(rateEl && autoRate){ rateEl.value = autoRate; calcTotal(); }
-    if(badge){ badge.textContent = '✅ 顧客登録済み（' + autoRate + '掛）'; badge.style.color='var(--grn)'; }
+    // 掛け率を自動セット（商品別 productRates → 共通 rate の順で参照）
+    const pr=cust.productRates;
+    const selProd=document.getElementById('add-prod')?.value;
+    let autoRate=cust.rate||'';
+    if(pr&&Array.isArray(pr)){const f=pr.find(x=>x.key===selProd);if(f&&f.rate)autoRate=f.rate;}
+    if(autoRate&&rateEl){rateEl.value=autoRate;calcTotal();}
+    if(badge){badge.textContent=autoRate?'✅ 顧客登録済み（'+autoRate+'掛）':'✅ 顧客登録済み（掛け率未設定）';badge.style.color=autoRate?'var(--grn)':'var(--gold)';}
   } else {
     if(badge && nm){ badge.textContent = '⚠️ 未登録顧客（手動で掛け率を選択）'; badge.style.color='var(--gold)'; }
     else if(badge){ badge.textContent = ''; }
@@ -2835,6 +2844,7 @@ function renderStock(){
           <div class="sc-nm">${p}</div>
           <div class="sc-ct ${alertCls}">${total}</div>
           <div class="sc-cost" onclick="event.stopPropagation();editCost('${p}')" style="cursor:pointer;text-decoration:underline dotted" title="クリックで仕入値編集">${costStr}</div>
+          <div class="sc-cost" onclick="event.stopPropagation();editPrice2('${p}')" style="cursor:pointer;font-size:.6rem;color:${PRICE2[p]!=null?'var(--wh3)':'rgba(255,255,255,.28)'};text-decoration:underline dotted" title="旧価格登録・編集">${PRICE2[p]!=null?'旧:¥'+PRICE2[p].toLocaleString():'旧価格:未設定'}</div>
           <div class="sbar-w"><div class="sbar ${alertCls}" style="width:${bw}%"></div></div>`;
       } else {
         // 単店舗モード: 5段内訳表示
@@ -2860,7 +2870,8 @@ function renderStock(){
               <span class="sc-bk-lbl">LAID</span><span class="sc-bk-val">${lendLAID}</span>
             </div>
           </div>
-          <div class="sc-cost" onclick="event.stopPropagation();editCost('${p}')" style="cursor:pointer;text-decoration:underline dotted;margin-top:.3rem" title="クリックで仕入値編集">${costStr}</div>`;
+          <div class="sc-cost" onclick="event.stopPropagation();editCost('${p}')" style="cursor:pointer;text-decoration:underline dotted;margin-top:.3rem" title="クリックで仕入値編集">${costStr}</div>
+          <div class="sc-cost" onclick="event.stopPropagation();editPrice2('${p}')" style="cursor:pointer;font-size:.6rem;color:${PRICE2[p]!=null?'var(--wh3)':'rgba(255,255,255,.28)'};text-decoration:underline dotted" title="旧価格登録・編集">${PRICE2[p]!=null?'旧:¥'+PRICE2[p].toLocaleString():'旧価格:未設定'}</div>`;
       }
 
       cardsRow.appendChild(card);
@@ -2922,7 +2933,8 @@ function openProdMasterModal(){
       <div class="fg"><label>商品名（表示）</label><input class="fc" id="np-name" placeholder="例: ロッソ"></div>
       <div class="fg"><label>カテゴリ</label><select class="fc" id="np-cat"><option>スプマンテ</option><option>ワイン</option><option>ギフト</option><option>その他</option></select></div>
       <div class="fg"><label>仕入単価</label><input type="number" class="fc" id="np-cost" placeholder="0"></div>
-      <div class="fg"><label>販売価格</label><input type="number" class="fc" id="np-price" placeholder="0"></div>
+      <div class="fg"><label>販売価格（新）</label><input type="number" class="fc" id="np-price" placeholder="0"></div>
+      <div class="fg"><label>販売価格（旧）</label><input type="number" class="fc" id="np-price2" placeholder="未設定"></div>
       <div class="fg"><label>発注点</label><input type="number" class="fc" id="np-reorder" placeholder="6"></div>
     </div>
     <button class="btn btn-p" style="margin-top:.8rem" onclick="addProdMaster()">追加</button>`;
@@ -2938,8 +2950,9 @@ function addProdMaster(){
   const price=parseInt(document.getElementById('np-price').value)||0;
   const reorder=parseInt(document.getElementById('np-reorder').value)||null;
   const cat=document.getElementById('np-cat').value;
-  PROD_LIST.push({key:name,name,fullName:name,cat,cost,price,reorder,img:''});
-  PRODS.push(name);PRICE[name]=price;COST[name]=cost;REORDER[name]=reorder;IMG[name]='';
+  const price2v=parseInt(document.getElementById('np-price2').value)||null;
+  PROD_LIST.push({key:name,name,fullName:name,cat,cost,price,price2:price2v,reorder,img:''});
+  PRODS.push(name);PRICE[name]=price;PRICE2[name]=price2v;COST[name]=cost;REORDER[name]=reorder;IMG[name]='';
   ['仙台','京都'].forEach(b=>{if(!S.stock[b])S.stock[b]={};S.stock[b][name]=0;});
   document.getElementById('modal').classList.remove('open');renderStock();toast(`「${name}」を商品マスタに追加しました`);
 }
@@ -3300,22 +3313,10 @@ function renderCustomers(){
       <td style="white-space:nowrap">
         <button onclick="openCustomer('${c.id}')" style="background:rgba(201,168,76,.14);border:1px solid rgba(201,168,76,.35);color:var(--gold);font-size:.65rem;padding:.18rem .6rem;cursor:pointer;border-radius:3px">詳細</button>
         <button onclick="editCustomer('${c.id}')" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.13);color:var(--wh2);font-size:.65rem;padding:.18rem .5rem;cursor:pointer;border-radius:3px;margin-left:.2rem">編集</button>
-        <button onclick="deleteCustomer('${c.id}','${c.name}')" style="background:rgba(224,82,82,.1);border:1px solid rgba(224,82,82,.35);color:var(--red);font-size:.65rem;padding:.18rem .5rem;cursor:pointer;border-radius:3px;margin-left:.2rem">削除</button>
       </td>
     </tr>`;
   }).join('');
   grid.innerHTML=`<div style="overflow-x:auto"><table class="cust-table" style="min-width:700px"><thead><tr><th style="min-width:120px">店舗名・タグ</th><th>拠点</th><th>エリア</th><th>担当者</th><th>掛け率</th><th>紹介者</th><th style="text-align:right;white-space:nowrap">未収金額</th><th style="text-align:center">協賛残</th><th style="white-space:nowrap">操作</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-}
-
-async function deleteCustomer(id, name){
-  if(!confirm(`「${name}」を削除しますか？\nスプレッドシートからも行が削除されます。`)) return;
-  S.customers = S.customers.filter(x => String(x.id) !== String(id));
-  renderCustomers();
-  if(S.gasUrl){
-    try{ await fetch(S.gasUrl + '?action=deleteCustomer&name=' + encodeURIComponent(name)); addSyncLog('顧客削除: ' + name); }catch(e){}
-  }
-  toast(`「${name}」を削除しました`);
-  auditLog('顧客削除', `${AUTH.user?.name||'-'} が顧客「${name}」を削除`, '顧客', '🗑️', {name});
 }
 
 function openCustomer(id){
@@ -3427,69 +3428,76 @@ function submitCustomer(){
   renderCustomers();
 }
 
-// 商品別掛率テーブル初期化
+// ─── 商品別掛率テーブル ──────────────────────────────────────────────────
 function initRatesTable(){
-  const tbody = document.getElementById('cn-rates-body');
-  if(!tbody) return;
-  tbody.innerHTML = PROD_LIST.map(p=>`
-    <tr style="border-bottom:1px solid rgba(255,255,255,.06)">
-      <td style="padding:.3rem .5rem;color:var(--wh2)">${p.name}</td>
-      <td style="padding:.3rem .4rem;text-align:center">
-        <select class="fc cn-rate-sel" data-key="${p.key}" style="font-size:.7rem;padding:.2rem .3rem;width:80px">
+  const tbody=document.getElementById('cn-rates-body');
+  if(!tbody)return;
+  tbody.innerHTML=PROD_LIST.map(p=>{
+    const h2=PRICE2[p.key]!=null;
+    const nL=p.price?'新(¥'+p.price.toLocaleString()+')':'新価格';
+    const oL=h2?'旧(¥'+PRICE2[p.key].toLocaleString()+')':null;
+    return `<tr style="border-bottom:1px solid rgba(255,255,255,.05)">
+      <td style="padding:.28rem .5rem;color:var(--wh2);font-size:.7rem;white-space:nowrap">${p.name}</td>
+      <td style="padding:.28rem .3rem;text-align:center">
+        <select class="fc cn-rate-sel" data-key="${p.key}"
+          style="font-size:.68rem;padding:.18rem .22rem;width:66px">
           <option value="">デフォ</option>
-          <option value="10">10掛</option>
-          <option value="9">9掛</option>
-          <option value="8">8掛</option>
-          <option value="7">7掛</option>
-          <option value="6">6掛</option>
-          <option value="5.5">5.5掛</option>
-          <option value="5">5掛</option>
-          <option value="4.5">4.5掛</option>
+          <option value="10">10掛</option><option value="9">9掛</option>
+          <option value="8">8掛</option><option value="7">7掛</option>
+          <option value="6">6掛</option><option value="5.5">5.5掛</option>
+          <option value="5">5掛</option><option value="4.5">4.5掛</option>
           <option value="4">4掛</option>
         </select>
       </td>
-      <td style="padding:.3rem .4rem;text-align:center">
-        <select class="fc cn-tax-sel" data-key="${p.key}" style="font-size:.7rem;padding:.2rem .3rem;width:80px">
+      <td style="padding:.28rem .3rem;text-align:center">
+        <select class="fc cn-tax-sel" data-key="${p.key}"
+          style="font-size:.68rem;padding:.18rem .22rem;width:74px">
           <option value="taxあり">taxあり</option>
           <option value="taxカット">taxカット</option>
         </select>
       </td>
-    </tr>`).join('');
+      <td style="padding:.28rem .3rem;text-align:center">
+        <select class="fc cn-price-sel" data-key="${p.key}"
+          data-new="${p.price||0}" data-old="${h2?PRICE2[p.key]:''}"
+          style="font-size:.68rem;padding:.18rem .22rem;width:${h2?90:62}px">
+          <option value="new">${nL}</option>
+          ${h2?`<option value="old">${oL}</option>`:''}
+        </select>
+      </td>
+    </tr>`;
+  }).join('');
 }
-
-// 商品別掛率データ取得
 function getProductRates(){
-  const rows = document.querySelectorAll('#cn-rates-body tr');
-  const result = [];
-  rows.forEach(tr=>{
-    const key = tr.querySelector('.cn-rate-sel')?.dataset.key;
-    const rate = tr.querySelector('.cn-rate-sel')?.value || '';
-    const tax  = tr.querySelector('.cn-tax-sel')?.value || 'taxあり';
-    if(key) result.push({key, rate, tax});
+  const res=[];
+  document.querySelectorAll('#cn-rates-body tr').forEach(tr=>{
+    const key=tr.querySelector('.cn-rate-sel')?.dataset.key;
+    if(!key)return;
+    const rate=tr.querySelector('.cn-rate-sel')?.value||'';
+    const tax=tr.querySelector('.cn-tax-sel')?.value||'taxあり';
+    const ps=tr.querySelector('.cn-price-sel');
+    const pt=ps?.value||'new';
+    const pv=pt==='old'?(parseInt(ps?.dataset.old)||null):(parseInt(ps?.dataset.new)||null);
+    res.push({key,rate,tax,priceType:pt,priceVal:pv});
   });
-  return result;
+  return res;
 }
-
-// 商品別掛率データをフォームにセット
 function setProductRates(data){
-  if(!data) { initRatesTable(); return; }
-  // まずテーブルを初期化
   initRatesTable();
-  // 配列形式（新形式）の場合
+  if(!data)return;
   if(Array.isArray(data)){
     data.forEach(item=>{
-      const rateSel = document.querySelector('#cn-rates-body .cn-rate-sel[data-key="'+item.key+'"]');
-      const taxSel  = document.querySelector('#cn-rates-body .cn-tax-sel[data-key="'+item.key+'"]');
-      if(rateSel) rateSel.value = item.rate || '';
-      if(taxSel)  taxSel.value  = item.tax  || 'taxあり';
+      const rs=document.querySelector('#cn-rates-body .cn-rate-sel[data-key="'+item.key+'"]');
+      const ts=document.querySelector('#cn-rates-body .cn-tax-sel[data-key="'+item.key+'"]');
+      const ps=document.querySelector('#cn-rates-body .cn-price-sel[data-key="'+item.key+'"]');
+      if(rs)rs.value=item.rate||'';
+      if(ts)ts.value=item.tax||'taxあり';
+      if(ps&&item.priceType)ps.value=item.priceType;
     });
-  }
-  // 旧形式（文字列の掛率）の場合は全商品同一値でセット
-  else if(typeof data === 'string' && data){
-    document.querySelectorAll('#cn-rates-body .cn-rate-sel').forEach(sel=>{ sel.value = data; });
+  } else if(typeof data==='string'&&data){
+    document.querySelectorAll('#cn-rates-body .cn-rate-sel').forEach(s=>{s.value=data;});
   }
 }
-
+// ────────────────────────────────────────────────────────────────────────────
 function openCustomerForm(){
   const panel=document.getElementById('cst-cn');
   if(!panel)return;
@@ -4696,7 +4704,8 @@ function doGet(e) {
           ownerTel:rows[i][5],   // 代表者電話
           staff:   rows[i][7],   // 弊社担当
           lineId:  rows[i][8],   // LINE ID
-          productRates:(()=>{try{return JSON.parse(rows[i][10]);}catch(e){return rows[i][10]||'';} })(), rate:rows[i][10],
+          productRates:(()=>{try{return JSON.parse(rows[i][10]);}catch(e){return rows[i][10]||'';} })(),
+          rate:rows[i][10],
           zip:     rows[i][12],  // 郵便番号
           pref:    rows[i][13],  // 都道府県
           city:    rows[i][14],  // 市町村郡
@@ -4716,7 +4725,9 @@ function doGet(e) {
     return json({ customers: rows.slice(1).map(r => ({
       name:r[0], kana:r[1], branch:r[2], tel:r[3],
       owner:r[4], ownerTel:r[5], contacts:r[6], staff:r[7],
-      lineId:r[8], lineUid:r[9], productRates:(()=>{try{return JSON.parse(r[10]);}catch(e){return r[10]||'';} })(), rate:r[10], referrer:r[11],
+      lineId:r[8], lineUid:r[9],
+      productRates:(()=>{try{return JSON.parse(r[10]);}catch(e){return r[10]||'';} })(),
+      rate:r[10], referrer:r[11],
       zip:r[12], pref:r[13], city:r[14], addr1:r[15], addr2:r[16],
       invName:r[17], bankName:r[18], note:r[19]
     }))});
@@ -4763,18 +4774,6 @@ function doGet(e) {
       }
     }
     return json({ error: '顧客が見つかりません' });
-  }
-
-  // 顧客をスプシから削除
-  if (action === 'deleteCustomer') {
-    const name = e.parameter.name;
-    if (!name) return json({ error: 'name required' });
-    const sh = getSheet('顧客');
-    const d  = sh.getDataRange().getValues();
-    for (let i = 1; i < d.length; i++) {
-      if (d[i][0] === name) { sh.deleteRow(i+1); break; }
-    }
-    return json({ ok: true });
   }
 
   // 未登録UIDをスプシから削除
