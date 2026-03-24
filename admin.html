@@ -3283,6 +3283,7 @@ function renderCustomers(){
       <td style="white-space:nowrap">
         <button onclick="openCustomer('${c.id}')" style="background:rgba(201,168,76,.14);border:1px solid rgba(201,168,76,.35);color:var(--gold);font-size:.65rem;padding:.18rem .6rem;cursor:pointer;border-radius:3px">詳細</button>
         <button onclick="editCustomer('${c.id}')" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.13);color:var(--wh2);font-size:.65rem;padding:.18rem .5rem;cursor:pointer;border-radius:3px;margin-left:.2rem">編集</button>
+        <button onclick="deleteCustomer('${c.id}','${c.name}')" style="background:rgba(224,82,82,.1);border:1px solid rgba(224,82,82,.35);color:var(--red);font-size:.65rem;padding:.18rem .5rem;cursor:pointer;border-radius:3px;margin-left:.2rem">削除</button>
       </td>
     </tr>`;
   }).join('');
@@ -3290,7 +3291,7 @@ function renderCustomers(){
 }
 
 function openCustomer(id){
-  const c=S.customers.find(x=>String(x.id)===String(id));if(!c)return;
+  const c=S.customers.find(x=>String(x.id)===String(id));if(!o)return;
   const orders=S.orders.filter(o=>o.store===c.name);
   const total=orders.reduce((s,o)=>s+calcAmt(o),0);
   const unpaid=orders.filter(o=>o.payStatus!=='集金済み').reduce((s,o)=>s+calcAmt(o),0);
@@ -3335,6 +3336,7 @@ function openCustomer(id){
     })():''}
     <div style="margin-top:.8rem;display:flex;gap:.5rem;flex-wrap:wrap">
       <button class="btn btn-s" onclick="editCustomer('${c.id}');closeModal()">✏️ 編集</button>
+      <button class="btn btn-s" style="color:var(--red);border-color:rgba(224,82,82,.4)" onclick="deleteCustomer('${c.id}','${c.name}');closeModal()">🗑️ 削除</button>
       ${c.sponsorEnabled?`<button class="btn btn-s" style="color:var(--grn);border-color:rgba(82,183,136,.4)" onclick="addSponsorShipment('${c.id}')">🎁 協賛出荷</button>`:''}
     </div>`;
   document.getElementById('modal-ok').style.display='none';
@@ -3445,6 +3447,21 @@ function clearCustomerForm(){
   toggleSponsorDetail();
   renderBankNamesList([]);
   renderContactsList([]);
+}
+
+async function deleteCustomer(id, name){
+  if(!confirm(`「${name}」を削除しますか？\nスプレッドシートからも削除されます。`)) return;
+  // ローカルから削除
+  S.customers = S.customers.filter(x=>String(x.id)!==String(id));
+  renderCustomers();
+  toast(`「${name}」を削除しました`);
+  auditLog('顧客削除', `${AUTH.user?.name||'-'} が「${name}」を削除しました`, '顧客', '🗑️', {name});
+  // GASへ削除リクエスト送信
+  if(S.gasUrl){
+    const url = S.gasUrl + '?payload=' + encodeURIComponent(JSON.stringify({action:'deleteCustomer', name}));
+    fetch(url, {mode:'no-cors'}).catch(()=>{});
+    addSyncLog('顧客削除: ' + name);
+  }
 }
 
 function editCustomer(id){
@@ -4681,6 +4698,21 @@ function doGet(e) {
       if (pd[j][1] === uid) { ps.deleteRow(j+1); break; }
     }
     return json({ ok: true });
+  }
+
+  // 顧客を削除（行を削除して詰める）
+  if (action === 'deleteCustomer') {
+    const name = e.parameter.name;
+    if (!name) return json({ error: 'name required' });
+    const sh = getSheet('顧客');
+    const d  = sh.getDataRange().getValues();
+    for (let i = 1; i < d.length; i++) {
+      if (d[i][0] === name) {
+        sh.deleteRow(i + 1);
+        return json({ ok: true });
+      }
+    }
+    return json({ error: '顧客が見つかりません' });
   }
 
   return json({ error: 'unknown action' });
