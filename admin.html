@@ -763,14 +763,14 @@ select.fc option{background:var(--d3)}
       </div>
 
       <!-- 3. 店舗情報 -->
-      <div class="fg" style="margin-bottom:.65rem"><label>店舗名 *</label><input class="fc" id="cn-name" placeholder="例：Sclass"></div>
-      <div class="fg" style="margin-bottom:.65rem"><label>フリガナ</label><input class="fc" id="cn-kana" placeholder="例：エスクラス"></div>
+      <div class="fg" style="margin-bottom:.65rem"><label>店舗名 *</label><input class="fc" id="cn-name" placeholder="例：Sclass" lang="ja" inputmode="text"></div>
+      <div class="fg" style="margin-bottom:.65rem"><label>フリガナ</label><input class="fc" id="cn-kana" placeholder="例：エスクラス" lang="ja" inputmode="text"></div>
       <div class="fg" style="margin-bottom:.65rem"><label>店舗電話番号</label><input class="fc" id="cn-tel" placeholder="022-xxxx-xxxx" type="tel"></div>
 
       <!-- 4. 代表者 -->
       <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:.8rem;margin-bottom:.65rem">
         <div style="font-size:.68rem;color:var(--gold);margin-bottom:.5rem">👑 代表者</div>
-        <div class="fg" style="margin-bottom:.4rem"><label style="font-size:.65rem;color:var(--wh2)">代表者名</label><input class="fc" id="cn-owner" placeholder="例：山田 太郎"></div>
+        <div class="fg" style="margin-bottom:.4rem"><label style="font-size:.65rem;color:var(--wh2)">代表者名</label><input class="fc" id="cn-owner" placeholder="例：山田 太郎" lang="ja" inputmode="text"></div>
         <div class="fg"><label style="font-size:.65rem;color:var(--wh2)">代表者電話番号</label><input class="fc" id="cn-owner-tel" placeholder="090-xxxx-xxxx" type="tel"></div>
       </div>
 
@@ -798,8 +798,8 @@ select.fc option{background:var(--d3)}
       <div class="fg" style="margin-bottom:.65rem"><label>LINE ID</label><input class="fc" id="cn-line" placeholder="LINE ID"></div>
       <div class="fg" style="margin-bottom:.65rem"><label>LINE UserID（LIFF認証用）</label><input class="fc" id="cn-lineuid" placeholder="U1234abcd..."></div>
       <div class="fg" style="margin-bottom:.65rem"><label>💰 掛け率</label><select class="fc" id="cn-rate"><option value="7">7掛（標準）</option><option value="6">6掛</option><option value="5.5">5.5掛</option><option value="5">5掛</option><option value="4.5">4.5掛</option><option value="4">4掛</option></select></div>
-      <div class="fg" style="margin-bottom:.65rem"><label>👤 紹介者</label><input class="fc" id="cn-referrer" placeholder="紹介者名・店舗名"></div>
-      <div class="fg" style="margin-bottom:.65rem"><label>請求書宛名</label><input class="fc" id="cn-invname" placeholder="請求書に記載する名前"></div>
+      <div class="fg" style="margin-bottom:.65rem"><label>👤 紹介者</label><input class="fc" id="cn-referrer" placeholder="紹介者名・店舗名" lang="ja" inputmode="text"></div>
+      <div class="fg" style="margin-bottom:.65rem"><label>請求書宛名</label><input class="fc" id="cn-invname" placeholder="請求書に記載する名前" lang="ja" inputmode="text"></div>
       <div style="margin-bottom:.8rem">
         <label style="font-size:.68rem;color:var(--gold);display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">振込先名義<button type="button" onclick="addBankNameRow()" style="background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.35);color:var(--gold);font-size:.65rem;padding:.15rem .6rem;cursor:pointer;border-radius:3px">＋追加</button></label>
         <div id="cn-banknames-list"></div>
@@ -816,7 +816,7 @@ select.fc option{background:var(--d3)}
           </div>
         </div>
       </div>
-      <div class="fg" style="margin-bottom:.8rem"><label>備考・メモ</label><textarea class="fc" id="cn-note" rows="2" placeholder="特記事項など" style="resize:vertical"></textarea></div>
+      <div class="fg" style="margin-bottom:.8rem"><label>備考・メモ</label><textarea class="fc" id="cn-note" rows="2" placeholder="特記事項など" lang="ja" inputmode="text" style="resize:vertical"></textarea></div>
       <div class="faction" style="display:flex;gap:.5rem">
         <button class="btn btn-p" id="cn-submit-btn" onclick="submitCustomer()">顧客を登録する</button>
         <button class="btn btn-g" onclick="clearCustomerForm()">クリア</button>
