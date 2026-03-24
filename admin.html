@@ -3418,6 +3418,8 @@ function openCustomerForm(){
   const panel=document.getElementById('cst-cn');
   if(!panel)return;
   panel.style.display='block';
+  // フォームを空欄にリセット
+  clearCustomerForm();
   // 弊社担当プルダウンをメンバーから初期化
   initStaffSelect();
   // 担当者リスト初期化
@@ -4687,7 +4689,7 @@ function doGet(e) {
     return json({ error: '顧客が見つかりません' });
   }
 
-  // 顧客をスプシから削除（行ごと削除して詰める）
+  // 顧客をスプシから削除
   if (action === 'deleteCustomer') {
     const name = e.parameter.name;
     if (!name) return json({ error: 'name required' });
