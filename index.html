@@ -590,7 +590,7 @@ async function searchZip() {
   if (zip.length !== 7) { msg.style.color="#e74"; msg.textContent="7桁の郵便番号を入力してください"; return; }
   msg.style.color="var(--wh3)"; msg.textContent="検索中...";
   try {
-    const r = await fetch(GAS_URL + "?action=zip&zip=" + zip);
+    const r = await fetch('https://zipcloud.ibsnet.co.jp/api/search?zipcode=' + zip);
     const d = await r.json();
     if (d.results && d.results[0]) {
       const res = d.results[0];
@@ -646,10 +646,7 @@ async function init() {
           </div>`;
         return;
       }
-      // 登録顧客の掛け率を保存（productRates → rate の順で参照）
-      if (authData.productRates && Array.isArray(authData.productRates)) {
-        window._custProductRates = authData.productRates;
-      }
+      // 登録顧客の掛け率を保存
       if (authData.rate) window._custRate = authData.rate;
       lineProfile = await liff.getProfile();
     }
