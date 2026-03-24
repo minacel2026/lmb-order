@@ -763,14 +763,14 @@ select.fc option{background:var(--d3)}
       </div>
 
       <!-- 3. 店舗情報 -->
-      <div class="fg" style="margin-bottom:.65rem"><label>店舗名 *</label><input class="fc" id="cn-name" placeholder="例：Sclass" style="ime-mode:active"></div>
-      <div class="fg" style="margin-bottom:.65rem"><label>フリガナ</label><input class="fc" id="cn-kana" placeholder="例：エスクラス" style="ime-mode:active"></div>
+      <div class="fg" style="margin-bottom:.65rem"><label>店舗名 *</label><input class="fc" id="cn-name" placeholder="例：Sclass"></div>
+      <div class="fg" style="margin-bottom:.65rem"><label>フリガナ</label><input class="fc" id="cn-kana" placeholder="例：エスクラス"></div>
       <div class="fg" style="margin-bottom:.65rem"><label>店舗電話番号</label><input class="fc" id="cn-tel" placeholder="022-xxxx-xxxx" type="tel"></div>
 
       <!-- 4. 代表者 -->
       <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:.8rem;margin-bottom:.65rem">
         <div style="font-size:.68rem;color:var(--gold);margin-bottom:.5rem">👑 代表者</div>
-        <div class="fg" style="margin-bottom:.4rem"><label style="font-size:.65rem;color:var(--wh2)">代表者名</label><input class="fc" id="cn-owner" placeholder="例：山田 太郎" style="ime-mode:active"></div>
+        <div class="fg" style="margin-bottom:.4rem"><label style="font-size:.65rem;color:var(--wh2)">代表者名</label><input class="fc" id="cn-owner" placeholder="例：山田 太郎"></div>
         <div class="fg"><label style="font-size:.65rem;color:var(--wh2)">代表者電話番号</label><input class="fc" id="cn-owner-tel" placeholder="090-xxxx-xxxx" type="tel"></div>
       </div>
 
@@ -798,8 +798,8 @@ select.fc option{background:var(--d3)}
       <div class="fg" style="margin-bottom:.65rem"><label>LINE ID</label><input class="fc" id="cn-line" placeholder="LINE ID"></div>
       <div class="fg" style="margin-bottom:.65rem"><label>LINE UserID（LIFF認証用）</label><input class="fc" id="cn-lineuid" placeholder="U1234abcd..."></div>
       <div class="fg" style="margin-bottom:.65rem"><label>💰 掛け率</label><select class="fc" id="cn-rate"><option value="7">7掛（標準）</option><option value="6">6掛</option><option value="5.5">5.5掛</option><option value="5">5掛</option><option value="4.5">4.5掛</option><option value="4">4掛</option></select></div>
-      <div class="fg" style="margin-bottom:.65rem"><label>👤 紹介者</label><input class="fc" id="cn-referrer" placeholder="紹介者名・店舗名" style="ime-mode:active"></div>
-      <div class="fg" style="margin-bottom:.65rem"><label>請求書宛名</label><input class="fc" id="cn-invname" placeholder="請求書に記載する名前" style="ime-mode:active"></div>
+      <div class="fg" style="margin-bottom:.65rem"><label>👤 紹介者</label><input class="fc" id="cn-referrer" placeholder="紹介者名・店舗名"></div>
+      <div class="fg" style="margin-bottom:.65rem"><label>請求書宛名</label><input class="fc" id="cn-invname" placeholder="請求書に記載する名前"></div>
       <div style="margin-bottom:.8rem">
         <label style="font-size:.68rem;color:var(--gold);display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">振込先名義<button type="button" onclick="addBankNameRow()" style="background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.35);color:var(--gold);font-size:.65rem;padding:.15rem .6rem;cursor:pointer;border-radius:3px">＋追加</button></label>
         <div id="cn-banknames-list"></div>
@@ -816,7 +816,7 @@ select.fc option{background:var(--d3)}
           </div>
         </div>
       </div>
-      <div class="fg" style="margin-bottom:.8rem"><label>備考・メモ</label><textarea class="fc" id="cn-note" rows="2" placeholder="特記事項など" style="ime-mode:active;resize:vertical" style="resize:vertical"></textarea></div>
+      <div class="fg" style="margin-bottom:.8rem"><label>備考・メモ</label><textarea class="fc" id="cn-note" rows="2" placeholder="特記事項など" style="resize:vertical"></textarea></div>
       <div class="faction" style="display:flex;gap:.5rem">
         <button class="btn btn-p" id="cn-submit-btn" onclick="submitCustomer()">顧客を登録する</button>
         <button class="btn btn-g" onclick="clearCustomerForm()">クリア</button>
@@ -922,7 +922,7 @@ select.fc option{background:var(--d3)}
           <div class="frow">
             <div class="fg"><label>請求書宛名</label><input class="fc" id="inv-toname" placeholder="○○株式会社 御中"></div>
             <div class="fg"><label>拠点</label><select class="fc" id="inv-br"><option>仙台</option><option>京都</option></select></div>
-            <div class="fg"><label>担当者</label><input class="fc" id="inv-staff" placeholder="担当者名" style="ime-mode:active"></div>
+            <div class="fg"><label>担当者</label><input class="fc" id="inv-staff" placeholder="担当者名"></div>
             <div class="fg"><label>TAX</label><select class="fc" id="inv-tax"><option value="taxあり">税込（10%）</option><option value="taxカット">税抜</option></select></div>
           </div>
           <h3 style="margin:.5rem 0">商品・本数</h3>
@@ -3290,7 +3290,7 @@ function renderCustomers(){
 }
 
 function openCustomer(id){
-  const c=S.customers.find(x=>String(x.id)===String(id));if(!o)return;
+  const c=S.customers.find(x=>String(x.id)===String(id));if(!c)return;
   const orders=S.orders.filter(o=>o.store===c.name);
   const total=orders.reduce((s,o)=>s+calcAmt(o),0);
   const unpaid=orders.filter(o=>o.payStatus!=='集金済み').reduce((s,o)=>s+calcAmt(o),0);
@@ -3503,7 +3503,7 @@ function renderContactsList(contacts){
   if(!contacts||contacts.length===0)contacts=[{name:'',tel:''}];
   list.innerHTML=contacts.map((c,i)=>`
     <div class="cn-contact-row" style="display:flex;gap:.4rem;align-items:center;margin-bottom:.4rem">
-      <input class="fc cn-contact-name" value="${c.name||''}" placeholder="担当者名" style="ime-mode:active" style="flex:1">
+      <input class="fc cn-contact-name" value="${c.name||''}" placeholder="担当者名" style="flex:1">
       <input class="fc cn-contact-tel" value="${(c.tel||'').replace(/^'+/,'')}" placeholder="090-xxxx-xxxx" type="tel" style="flex:1">
       ${contacts.length>1?`<button type="button" onclick="removeContactRow(${i})" style="background:none;border:none;color:rgba(224,82,82,.7);cursor:pointer;font-size:1rem;padding:.1rem .3rem">✕</button>`:''}
     </div>`).join('');
