@@ -686,11 +686,8 @@ select.fc option{background:var(--d3)}
           </select>
         </div>
         <div class="fg"><label>取引区分</label>
-          <select class="fc" id="si-type" onchange="renderInitStock()">
-            <option value="通常仕入">通常仕入（新値）</option>
-            <option value="旧値仕入">旧値仕入（旧値）</option>
-            <option value="協賛仕入">協賛仕入（無料）</option>
-            <option value="初期登録">初期登録（合計）</option>
+          <select class="fc" id="si-type">
+            <option value="初期登録">初期登録</option>
           </select>
         </div>
         <div class="fg"><label>日付</label><input type="date" class="fc" id="si-date"></div>
@@ -800,7 +797,20 @@ select.fc option{background:var(--d3)}
       </div>
       <div class="fg" style="margin-bottom:.65rem"><label>LINE ID</label><input class="fc" id="cn-line" placeholder="LINE ID"></div>
       <div class="fg" style="margin-bottom:.65rem"><label>LINE UserID（LIFF認証用）</label><input class="fc" id="cn-lineuid" placeholder="U1234abcd..."></div>
-      <div class="fg" style="margin-bottom:.65rem"><label>💰 掛け率</label><select class="fc" id="cn-rate"><option value="7">7掛（標準）</option><option value="6">6掛</option><option value="5.5">5.5掛</option><option value="5">5掛</option><option value="4.5">4.5掛</option><option value="4">4掛</option></select></div>
+      <div style="margin-bottom:.65rem">
+        <label style="font-size:.68rem;color:var(--gold);margin-bottom:.4rem;display:block">💰 商品別掛率・TAX・価格</label>
+        <div style="max-height:290px;overflow-y:auto;border:1px solid rgba(255,255,255,.1);border-radius:5px">
+          <table style="width:100%;border-collapse:collapse;font-size:.72rem" id="cn-rates-table">
+            <thead><tr style="background:var(--d3);position:sticky;top:0;z-index:1">
+              <th style="padding:.3rem .5rem;color:var(--wh2);text-align:left">商品</th>
+              <th style="padding:.3rem .5rem;color:var(--wh2);text-align:center">掛率</th>
+              <th style="padding:.3rem .5rem;color:var(--wh2);text-align:center">TAX</th>
+              <th style="padding:.3rem .5rem;color:var(--wh2);text-align:center">価格</th>
+            </tr></thead>
+            <tbody id="cn-rates-body"></tbody>
+          </table>
+        </div>
+      </div>
       <div class="fg" style="margin-bottom:.65rem"><label>👤 紹介者</label><input class="fc" id="cn-referrer" placeholder="紹介者名・店舗名"></div>
       <div class="fg" style="margin-bottom:.65rem"><label>請求書宛名</label><input class="fc" id="cn-invname" placeholder="請求書に記載する名前"></div>
       <div style="margin-bottom:.8rem">
@@ -1246,7 +1256,6 @@ select.fc option{background:var(--d3)}
       <option value="">全仕入区分</option>
       <option value="通常仕入">通常仕入</option>
       <option value="協賛仕入">協賛仕入</option>
-      <option value="旧値仕入">旧値仕入</option>
       <option value="ちどり賃借">ちどりや賃借</option>
       <option value="LAID賃借">LAID賃借</option>
     </select>
@@ -1283,7 +1292,6 @@ select.fc option{background:var(--d3)}
           <select class="fc" id="pp-type" onchange="updatePpFormRows()" style="font-size:.75rem">
             <option value="通常仕入">通常仕入（有償）</option>
             <option value="協賛仕入">協賛仕入（無償）</option>
-            <option value="旧値仕入">旧値仕入（旧在庫）</option>
             <option value="ちどり賃借">ちどりや賃借</option>
             <option value="LAID賃借">LAID賃借</option>
           </select>
@@ -1435,8 +1443,8 @@ const INIT_SD={イエロー:116,オレンジ:39,ブルー:57,ブラック:54,プ
 PRODS.forEach(p=>{
   S.stock['仙台'][p]=0;
   S.stock['京都'][p]=0;
-  if(!S.stockDetail['仙台'][p]) S.stockDetail['仙台'][p]={normal:0,service:0,oldStock:0,lendChidori:0,lendLAID:0};
-  if(!S.stockDetail['京都'][p]) S.stockDetail['京都'][p]={normal:0,service:0,oldStock:0,lendChidori:0,lendLAID:0};
+  if(!S.stockDetail['仙台'][p]) S.stockDetail['仙台'][p]={normal:0,service:0,lendChidori:0,lendLAID:0};
+  if(!S.stockDetail['京都'][p]) S.stockDetail['京都'][p]={normal:0,service:0,lendChidori:0,lendLAID:0};
 });
 
 // Sample orders
@@ -1536,7 +1544,7 @@ function setBr(b,btn){
 // ── 入出庫登録: 仕入セクション表示切替 ──
 function toggleSaInbound(){
   const tp = document.getElementById('sa-type').value;
-  const isInbound = tp.startsWith('1|') && ['通常仕入','協賛仕入','旧値仕入','ちどり賃借','LAID賃借'].some(t=>tp.includes(t));
+  const isInbound = tp.startsWith('1|') && ['通常仕入','協賛仕入','ちどり賃借','LAID賃借'].some(t=>tp.includes(t));
   const isNormalPurchase = tp.includes('通常仕入');
   const inboundSec = document.getElementById('sa-inbound-section');
   const normalSec  = document.getElementById('sa-normal-section');
@@ -1872,12 +1880,11 @@ function markDelivered(puId){
     const {branch:b, product:p, qty, unitCost, tradeType:type} = pu;
     if(!S.stock[b])        S.stock[b] = {};
     if(!S.stockDetail[b])  S.stockDetail[b] = {};
-    if(!S.stockDetail[b][p]) S.stockDetail[b][p] = {normal:0,service:0,oldStock:0,lendChidori:0,lendLAID:0};
+    if(!S.stockDetail[b][p]) S.stockDetail[b][p] = {normal:0,service:0,lendChidori:0,lendLAID:0};
     S.stock[b][p] = (S.stock[b][p]||0) + qty;
     const det = S.stockDetail[b][p];
     if(type==='通常仕入')        det.normal       = (det.normal||0)+qty;
     else if(type==='協賛仕入')   det.service      = (det.service||0)+qty;
-    else if(type==='旧値仕入')   det.oldStock     = (det.oldStock||0)+qty;
     else if(type==='ちどり賃借') det.lendChidori  = (det.lendChidori||0)+qty;
     else if(type==='LAID賃借')   det.lendLAID     = (det.lendLAID||0)+qty;
 
@@ -2011,12 +2018,11 @@ function renderPuMonthly(all){
   const monthly={};
   all.forEach(pu=>{
     const ym=pu.orderDate?pu.orderDate.slice(0,7):'不明';
-    if(!monthly[ym]) monthly[ym]={normal:0,service:0,oldStock:0,lend:0,qty:0,cost:0};
+    if(!monthly[ym]) monthly[ym]={normal:0,service:0,lend:0,qty:0,cost:0};
     const m=monthly[ym];
     m.qty+=pu.qty; m.cost+=pu.totalCost||0;
     if(pu.tradeType==='通常仕入') m.normal+=pu.qty;
     else if(pu.tradeType==='協賛仕入') m.service+=pu.qty;
-    else if(pu.tradeType==='旧値仕入') m.oldStock+=pu.qty;
     else m.lend+=pu.qty;
   });
   const sorted=Object.keys(monthly).sort().reverse();
@@ -2026,7 +2032,6 @@ function renderPuMonthly(all){
       <td style="font-weight:700;color:var(--gold-l)">${ym}</td>
       <td style="text-align:right;color:var(--gold-l)">${m.normal}本</td>
       <td style="text-align:right;color:var(--grn)">${m.service}本</td>
-      <td style="text-align:right;color:rgba(240,235,224,.7)">${m.oldStock||0}本</td>
       <td style="text-align:right;color:#7eb8f7">${m.lend}本</td>
       <td style="text-align:right;font-weight:700">${m.qty}本</td>
       <td style="text-align:right;font-weight:700;color:var(--gold-l)">${m.cost?'¥'+m.cost.toLocaleString():'—'}</td>
@@ -2095,11 +2100,11 @@ function showStockDetail(b, p){
     const d=S.stockDetail[br]?.[p]||{};
     totalNormal+=(d.normal||0);
     totalService+=(d.service||0);
-    totalOld+=(d.oldStock||0);
-    totalLend+=((d.lendChidori||0)+(d.lendLAID||0));
+    totalLend+=(d.lend||0);
   });
+  // 旧値在庫 = 合計 - (通常+協賛+借入)
   const totalQtyBranch = branches.reduce((s,br)=>s+(S.stock[br]?.[p]||0),0);
-  const totalOldCalc = totalOld;
+  const totalOldCalc = Math.max(0, totalQtyBranch - totalNormal - totalService - totalLend);
 
   const isBranchBoth = branches.length > 1;
   const brLabel = isBranchBoth ? '全店舗' : b;
@@ -2140,15 +2145,15 @@ function showStockDetail(b, p){
     ['仙台','京都'].forEach(br=>{
       const d=S.stockDetail[br]?.[p]||{};
       const brQ=S.stock[br]?.[p]||0;
-      const brOld=d.oldStock||0;
+      const brOld=Math.max(0,brQ-(d.normal||0)-(d.service||0)-(d.lend||0));
       html+=`<div style="background:var(--d2);border:1px solid rgba(201,168,76,.2);padding:.7rem;border-radius:4px">
         <div style="font-size:.68rem;font-weight:700;color:var(--gold-l);margin-bottom:.4rem">── ${br} ──</div>
         <div style="font-size:.72rem;color:var(--wh2);line-height:2">
           合計: <b style="color:var(--wh)">${brQ}本</b><br>
           <span style="color:var(--gold-d)">通常: ${d.normal||0}本</span> /
           <span style="color:var(--grn)"> 協賛: ${d.service||0}本</span><br>
-          <span style="color:var(--wh3)">旧値: ${d.oldStock||0}本</span> /
-          <span style="color:#7eb8f7"> 賃借: ${(d.lendChidori||0)+(d.lendLAID||0)}本</span>
+          <span style="color:var(--wh3)">旧値: ${brOld}本</span> /
+          <span style="color:#7eb8f7"> 賃借: ${d.lend||0}本</span>
         </div>
       </div>`;
     });
@@ -2394,10 +2399,10 @@ function changeOrderStatus(ordId, newStatus){
       // stockDetail の通常在庫から優先的に減算
       const det = S.stockDetail[b]?.[p];
       if(det){
-        let remain = qty;
-        // 旧値→通常→協賛の順で減算
-        const fromOld    = Math.min(det.oldStock||0, remain); det.oldStock = (det.oldStock||0) - fromOld; remain -= fromOld;
-        const fromNormal = Math.min(det.normal||0,   remain); det.normal   = (det.normal||0)   - fromNormal; remain -= fromNormal;
+        const deduct = qty;
+        const fromNormal = Math.min(det.normal||0, deduct);
+        det.normal = (det.normal||0) - fromNormal;
+        const remain = deduct - fromNormal;
         if(remain>0){ det.service = Math.max(0,(det.service||0)-remain); }
       }
       // slogに出庫記録
@@ -2678,14 +2683,13 @@ function autofillCustomer(){
     if(cust.area && !document.getElementById('f-area').value) document.getElementById('f-area').value = cust.area;
     if(cust.staff && !document.getElementById('f-staff').value) document.getElementById('f-staff').value = cust.staff;
     if(cust.tel && !document.getElementById('f-tel').value) document.getElementById('f-tel').value = cust.tel;
-    // 掛け率を自動セット
-    if(cust.rate && rateEl){
-      rateEl.value = cust.rate;
-      calcTotal();
-      if(badge){ badge.textContent = '✅ 顧客登録済み（' + cust.rate + '掛）'; badge.style.color='var(--grn)'; }
-    } else {
-      if(badge){ badge.textContent = '✅ 顧客登録済み（掛け率未設定）'; badge.style.color='var(--gold)'; }
-    }
+    // 掛け率を自動セット（productRates → rate の順）
+    const pr=cust.productRates;
+    const selProd=document.getElementById('add-prod')?.value;
+    let autoRate=cust.rate||'';
+    if(pr&&Array.isArray(pr)){const f=pr.find(x=>x.key===selProd);if(f&&f.rate)autoRate=f.rate;}
+    if(autoRate&&rateEl){rateEl.value=autoRate;calcTotal();}
+    if(badge){badge.textContent=autoRate?'✅ 顧客登録済み（'+autoRate+'掛）':'✅ 顧客登録済み（掛け率未設定）';badge.style.color=autoRate?'var(--grn)':'var(--gold)';}
   } else {
     if(badge && nm){ badge.textContent = '⚠️ 未登録顧客（手動で掛け率を選択）'; badge.style.color='var(--gold)'; }
     else if(badge){ badge.textContent = ''; }
@@ -2798,14 +2802,13 @@ function renderStock(){
     PRODS.forEach(p => {
       const img = IMG[p] || '';
       const det = S.stockDetail[b]?.[p] || {};
-      const normal      = det.normal      || 0;
-      const service     = det.service     || 0;
-      const oldStock    = det.oldStock    || 0;
+      const normal  = det.normal  || 0;
+      const service = det.service || 0;
       const lendChidori = det.lendChidori || 0;
       const lendLAID    = det.lendLAID    || 0;
-      const totalKnown  = normal + service + oldStock + lendChidori + lendLAID;
+      const totalKnown  = normal + service + lendChidori + lendLAID;
       const total = S.stock[b]?.[p] || 0;
-      const oldVal = oldStock;
+      const oldVal = Math.max(0, total - totalKnown);
 
       const ro = REORDER[p];
       const alertCls = total<=0 ? 'alert' : ro&&total<=ro ? 'alert' : ro&&total<=ro*1.5 ? 'warn' : '';
@@ -2842,7 +2845,7 @@ function renderStock(){
             <div class="sc-bk-row sc-bk-service" title="協賛仕入">
               <span class="sc-bk-lbl">協賛</span><span class="sc-bk-val">${service}</span>
             </div>
-            <div class="sc-bk-row sc-bk-old" title="旧値在庫（旧値仕入分）">
+            <div class="sc-bk-row sc-bk-old" title="旧値在庫">
               <span class="sc-bk-lbl">旧値</span><span class="sc-bk-val">${oldVal}</span>
             </div>
             <div class="sc-bk-row sc-bk-chidori" title="ちどりや貸出・借入">
@@ -2959,16 +2962,12 @@ function renderInitStock() {
   const br = document.getElementById('si-br').value;
   const grid = document.getElementById('si-grid');
   if (!grid) return;
-  const type = document.getElementById('si-type').value;
-  const isAdd = (type !== '初期登録'); // 追加登録モード
   grid.innerHTML = PRODS.map(p => {
     const cur = S.stock[br]?.[p] || 0;
-    const det = S.stockDetail[br]?.[p] || {};
-    const detCur = type==='通常仕入'?(det.normal||0):type==='旧値仕入'?(det.oldStock||0):type==='協賛仕入'?(det.service||0):cur;
     return `<div class="fp" style="padding:.6rem">
       <div style="font-size:.75rem;font-weight:600;color:var(--gold);margin-bottom:.4rem">${p}</div>
-      <div style="font-size:.6rem;color:var(--wh3);margin-bottom:.4rem">${isAdd?'追加本数を入力（現在'+detCur+'本）':'現在庫: '+cur+'本'}</div>
-      <input type="number" class="fc" id="si-${p}" min="0" value="${isAdd?0:cur}" placeholder="0" style="text-align:center">
+      <div style="font-size:.6rem;color:var(--wh3);margin-bottom:.4rem">現在庫: ${cur}本</div>
+      <input type="number" class="fc" id="si-${p}" min="0" value="${cur}" placeholder="0" style="text-align:center">
     </div>`;
   }).join('');
   // 日付デフォルト
@@ -2999,37 +2998,16 @@ function submitInitStock() {
     const prev = S.stock[br]?.[p] || 0;
     const delta = qty - prev;
     if (!S.stock[br]) S.stock[br] = {};
-    // 区分別に stockDetail も更新
-    if(!S.stockDetail[br]) S.stockDetail[br]={};
-    if(!S.stockDetail[br][p]) S.stockDetail[br][p]={normal:0,service:0,oldStock:0,lendChidori:0,lendLAID:0};
-    const det = S.stockDetail[br][p];
-    if(type==='初期登録'){
-      // 合計登録：差分をnormalに反映
-      S.stock[br][p] = qty;
-      det.normal = Math.max(0,(det.normal||0)+delta);
-    } else if(type==='通常仕入'){
-      const addQty = qty; // 入力値がそのまま追加本数
-      S.stock[br][p] = (S.stock[br][p]||0) + addQty;
-      det.normal = (det.normal||0)+addQty;
-    } else if(type==='旧値仕入'){
-      const addQty = qty;
-      S.stock[br][p] = (S.stock[br][p]||0) + addQty;
-      det.oldStock = (det.oldStock||0)+addQty;
-    } else if(type==='協賛仕入'){
-      const addQty = qty;
-      S.stock[br][p] = (S.stock[br][p]||0) + addQty;
-      det.service = (det.service||0)+addQty;
-    }
-    if (qty > 0) {
+    S.stock[br][p] = qty;
+    if (qty > 0 || prev > 0) {
       S.slog.unshift({
         date, time,
         branch: br,
-        type: '入庫',
+        type: type,
         product: p,
-        qty: qty,
-        remaining: S.stock[br][p],
-        note: note,
-        tradeType: type
+        qty: Math.abs(delta),
+        remaining: qty,
+        note: note
       });
       count++;
     }
@@ -3078,12 +3056,11 @@ function submitAdj(){
 
   // stockDetail 更新
   if(!S.stockDetail[b]) S.stockDetail[b]={};
-  if(!S.stockDetail[b][p]) S.stockDetail[b][p]={normal:0,service:0,oldStock:0,lendChidori:0,lendLAID:0};
+  if(!S.stockDetail[b][p]) S.stockDetail[b][p]={normal:0,service:0,old:0,lend:0};
   const det=S.stockDetail[b][p];
   const detDelta = tpSign===0 ? 0 : tpSign*q;
-  if(tpLabel==='通常仕入')      det.normal    = Math.max(0,(det.normal||0)+detDelta);
-  else if(tpLabel==='協賛仕入') det.service   = Math.max(0,(det.service||0)+detDelta);
-  else if(tpLabel==='旧値仕入') det.oldStock  = Math.max(0,(det.oldStock||0)+detDelta);
+  if(tpLabel==='通常仕入')      det.normal = Math.max(0,(det.normal||0)+detDelta);
+  else if(tpLabel==='協賛仕入') det.service= Math.max(0,(det.service||0)+detDelta);
   else if(tpLabel==='ちどり賃借'||tpLabel==='ちどり返却') det.lendChidori=Math.max(0,(det.lendChidori||0)+detDelta);
   else if(tpLabel==='LAID賃借'||tpLabel==='LAID返却')    det.lendLAID=Math.max(0,(det.lendLAID||0)+detDelta);
 
@@ -3311,13 +3288,14 @@ function renderCustomers(){
       <td style="color:var(--wh2);white-space:nowrap;font-size:.75rem">${c.branch||'-'}</td>
       <td style="color:var(--wh2);white-space:nowrap;font-size:.75rem;max-width:130px;overflow:hidden;text-overflow:ellipsis">${c.area||'-'}</td>
       <td style="color:var(--wh2);white-space:nowrap;font-size:.75rem">${c.staff||'-'}</td>
-      <td style="white-space:nowrap"><span style="background:rgba(201,168,76,.18);color:var(--gold);padding:2px 7px;border-radius:10px;font-weight:700;font-size:.7rem">${c.rate||'7'}掛</span></td>
+      <td style="white-space:nowrap"><span style="background:rgba(201,168,76,.18);color:var(--gold);padding:2px 7px;border-radius:10px;font-weight:700;font-size:.7rem">${(()=>{if(c.productRates&&Array.isArray(c.productRates)){const r=c.productRates.find(x=>x.rate);return r?r.rate+'掛':'設定済';}return(c.rate||'7')+'掛';})()}</span></td>
       <td style="color:var(--wh3);font-size:.72rem;white-space:nowrap">${c.referrer||'-'}</td>
       <td style="text-align:right;white-space:nowrap;color:${unpaid?'var(--red)':'var(--wh3)'};font-variant-numeric:tabular-nums;font-weight:${unpaid?700:400};font-size:.78rem">${unpaid?'¥'+fmt(unpaid):'-'}</td>
       <td style="text-align:center;white-space:nowrap">${c.sponsorEnabled?`<span style="color:var(--grn);font-size:.68rem">🎁${sbal.pts}本</span>`:'<span style="color:var(--wh3);font-size:.7rem">-</span>'}</td>
       <td style="white-space:nowrap">
         <button onclick="openCustomer('${c.id}')" style="background:rgba(201,168,76,.14);border:1px solid rgba(201,168,76,.35);color:var(--gold);font-size:.65rem;padding:.18rem .6rem;cursor:pointer;border-radius:3px">詳細</button>
         <button onclick="editCustomer('${c.id}')" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.13);color:var(--wh2);font-size:.65rem;padding:.18rem .5rem;cursor:pointer;border-radius:3px;margin-left:.2rem">編集</button>
+        <button onclick="deleteCustomer('${c.id}','${c.name}')" style="background:rgba(224,82,82,.1);border:1px solid rgba(224,82,82,.35);color:var(--red);font-size:.65rem;padding:.18rem .5rem;cursor:pointer;border-radius:3px;margin-left:.2rem">削除</button>
       </td>
     </tr>`;
   }).join('');
@@ -3325,7 +3303,7 @@ function renderCustomers(){
 }
 
 function openCustomer(id){
-  const c=S.customers.find(x=>String(x.id)===String(id));if(!o)return;
+  const c=S.customers.find(x=>String(x.id)===String(id));if(!c)return;
   const orders=S.orders.filter(o=>o.store===c.name);
   const total=orders.reduce((s,o)=>s+calcAmt(o),0);
   const unpaid=orders.filter(o=>o.payStatus!=='集金済み').reduce((s,o)=>s+calcAmt(o),0);
@@ -3405,7 +3383,7 @@ function submitCustomer(){
     invName:document.getElementById('cn-invname').value||nm+' 御中',
     bankNames:bankItems,bankName:bankItems[0]||'',
     note:document.getElementById('cn-note').value,
-    rate:document.getElementById('cn-rate').value,
+    productRates:getProductRates(),
     referrer:document.getElementById('cn-referrer')?.value.trim()||'',
     sponsorEnabled,
     sponsorTrigger:sponsorEnabled?parseInt(document.getElementById('cn-sponsor-trigger')?.value)||6:null,
@@ -3433,10 +3411,87 @@ function submitCustomer(){
   renderCustomers();
 }
 
+async function deleteCustomer(id,name){
+  if(!confirm(`「${name}」を削除しますか？\nスプレッドシートからも行が削除されます。`))return;
+  S.customers=S.customers.filter(x=>String(x.id)!==String(id));
+  renderCustomers();
+  if(S.gasUrl){try{await fetch(S.gasUrl+'?action=deleteCustomer&name='+encodeURIComponent(name));addSyncLog('顧客削除: '+name);}catch(e){}}
+  toast(`「${name}」を削除しました`);
+}
+// ─── 商品別掛率テーブル ──────────────────────────────────────────
+function initRatesTable(){
+  const tbody=document.getElementById('cn-rates-body');
+  if(!tbody)return;
+  tbody.innerHTML=PROD_LIST.map(p=>{
+    const h2=typeof PRICE2!=='undefined'&&PRICE2[p.key]!=null;
+    const nL=p.price?'新(¥'+p.price.toLocaleString()+')':'新価格';
+    const oL=h2?'旧(¥'+PRICE2[p.key].toLocaleString()+')':null;
+    return `<tr style="border-bottom:1px solid rgba(255,255,255,.05)">
+      <td style="padding:.28rem .5rem;color:var(--wh2);font-size:.7rem;white-space:nowrap">${p.name}</td>
+      <td style="padding:.28rem .3rem;text-align:center">
+        <select class="fc cn-rate-sel" data-key="${p.key}" style="font-size:.68rem;padding:.18rem .22rem;width:66px">
+          <option value="">デフォ</option>
+          <option value="10">10掛</option><option value="9">9掛</option>
+          <option value="8">8掛</option><option value="7">7掛</option>
+          <option value="6">6掛</option><option value="5.5">5.5掛</option>
+          <option value="5">5掛</option><option value="4.5">4.5掛</option>
+          <option value="4">4掛</option>
+        </select>
+      </td>
+      <td style="padding:.28rem .3rem;text-align:center">
+        <select class="fc cn-tax-sel" data-key="${p.key}" style="font-size:.68rem;padding:.18rem .22rem;width:74px">
+          <option value="taxあり">taxあり</option>
+          <option value="taxカット">taxカット</option>
+        </select>
+      </td>
+      <td style="padding:.28rem .3rem;text-align:center">
+        <select class="fc cn-price-sel" data-key="${p.key}"
+          data-new="${p.price||0}" data-old="${h2?PRICE2[p.key]:''}" 
+          style="font-size:.68rem;padding:.18rem .22rem;width:${h2?90:62}px">
+          <option value="new">${nL}</option>
+          ${h2?`<option value="old">${oL}</option>`:''}
+        </select>
+      </td>
+    </tr>`;
+  }).join('');
+}
+function getProductRates(){
+  const res=[];
+  document.querySelectorAll('#cn-rates-body tr').forEach(tr=>{
+    const key=tr.querySelector('.cn-rate-sel')?.dataset.key;
+    if(!key)return;
+    const rate=tr.querySelector('.cn-rate-sel')?.value||'';
+    const tax=tr.querySelector('.cn-tax-sel')?.value||'taxあり';
+    const ps=tr.querySelector('.cn-price-sel');
+    const pt=ps?.value||'new';
+    const pv=pt==='old'?(parseInt(ps?.dataset.old)||null):(parseInt(ps?.dataset.new)||null);
+    res.push({key,rate,tax,priceType:pt,priceVal:pv});
+  });
+  return res;
+}
+function setProductRates(data){
+  initRatesTable();
+  if(!data)return;
+  if(Array.isArray(data)){
+    data.forEach(item=>{
+      const rs=document.querySelector('#cn-rates-body .cn-rate-sel[data-key="'+item.key+'"]');
+      const ts=document.querySelector('#cn-rates-body .cn-tax-sel[data-key="'+item.key+'"]');
+      const ps=document.querySelector('#cn-rates-body .cn-price-sel[data-key="'+item.key+'"]');
+      if(rs)rs.value=item.rate||'';
+      if(ts)ts.value=item.tax||'taxあり';
+      if(ps&&item.priceType)ps.value=item.priceType;
+    });
+  } else if(typeof data==='string'&&data){
+    document.querySelectorAll('#cn-rates-body .cn-rate-sel').forEach(s=>{s.value=data;});
+  }
+}
+// ─────────────────────────────────────────────────────────────────
 function openCustomerForm(){
   const panel=document.getElementById('cst-cn');
   if(!panel)return;
   panel.style.display='block';
+  // 商品別掛率テーブル初期化
+  initRatesTable();
   // 弊社担当プルダウンをメンバーから初期化
   initStaffSelect();
   // 担当者リスト初期化
@@ -3471,7 +3526,7 @@ function clearCustomerForm(){
   ['cn-name','cn-kana','cn-tel','cn-owner','cn-owner-tel','cn-line','cn-lineuid','cn-invname','cn-note','cn-referrer','cn-sponsor-trigger','cn-zip','cn-pref','cn-city','cn-addr1','cn-addr2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const zipMsg=document.getElementById('cn-zip-msg');if(zipMsg)zipMsg.textContent='';
   const br=document.getElementById('cn-br');if(br)br.value='仙台';
-  const rt=document.getElementById('cn-rate');if(rt)rt.value='7';
+  initRatesTable();
   const se=document.getElementById('cn-sponsor-enabled');if(se)se.value='0';
   const sf=document.getElementById('cn-staff');if(sf)sf.value='';
   // 協賛商品プルダウンを初期化
@@ -3501,7 +3556,7 @@ function editCustomer(id){
   document.getElementById('cn-lineuid').value=cu.lineUid||'';
   document.getElementById('cn-invname').value=cu.invName||'';
   document.getElementById('cn-note').value=cu.note||'';
-  document.getElementById('cn-rate').value=cu.rate||'7';
+  setProductRates(cu.productRates||cu.rate);
   if(document.getElementById('cn-referrer'))document.getElementById('cn-referrer').value=cu.referrer||'';
   // 住所フィールド復元
   if(document.getElementById('cn-zip'))   document.getElementById('cn-zip').value   = cu.zip||'';
@@ -4637,7 +4692,8 @@ function doGet(e) {
           ownerTel:rows[i][5],   // 代表者電話
           staff:   rows[i][7],   // 弊社担当
           lineId:  rows[i][8],   // LINE ID
-          rate:    rows[i][10],  // 掛け率
+          productRates:(()=>{try{return JSON.parse(rows[i][10]);}catch(e){return rows[i][10]||'';} })(),
+          rate:rows[i][10],
           zip:     rows[i][12],  // 郵便番号
           pref:    rows[i][13],  // 都道府県
           city:    rows[i][14],  // 市町村郡
@@ -4657,7 +4713,9 @@ function doGet(e) {
     return json({ customers: rows.slice(1).map(r => ({
       name:r[0], kana:r[1], branch:r[2], tel:r[3],
       owner:r[4], ownerTel:r[5], contacts:r[6], staff:r[7],
-      lineId:r[8], lineUid:r[9], rate:r[10], referrer:r[11],
+      lineId:r[8], lineUid:r[9],
+      productRates:(()=>{try{return JSON.parse(r[10]);}catch(e){return r[10]||'';} })(),
+      rate:r[10], referrer:r[11],
       zip:r[12], pref:r[13], city:r[14], addr1:r[15], addr2:r[16],
       invName:r[17], bankName:r[18], note:r[19]
     }))});
@@ -4707,6 +4765,17 @@ function doGet(e) {
   }
 
   // 未登録UIDをスプシから削除
+  if (action === 'deleteCustomer') {
+    var nm = e.parameter.name;
+    if (!nm) return json({ error: 'name required' });
+    var sh = getSheet('顧客');
+    var d  = sh.getDataRange().getValues();
+    for (var i = 1; i < d.length; i++) {
+      if (d[i][0] === nm) { sh.deleteRow(i+1); break; }
+    }
+    return json({ ok: true });
+  }
+
   if (action === 'deleteUid') {
     const uid = e.parameter.uid;
     if (!uid) return json({ error: 'uid required' });
@@ -4866,7 +4935,7 @@ function saveCustomerToSheet(c) {
     c.staff    || '',
     c.lineId   || '',
     c.lineUid  || '',
-    c.rate     || '',
+    c.productRates ? JSON.stringify(c.productRates) : (c.rate||''),
     c.referrer || '',
     c.zip      || '',
     c.pref     || '',
