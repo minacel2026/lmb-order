@@ -649,8 +649,11 @@ async function init() {
       // 登録顧客の掛け率を保存（productRates → rate の順）
       if (authData.productRates && Array.isArray(authData.productRates)) {
         window._custProductRates = authData.productRates;
+        // productRatesがある場合は共通rateは使わない（JSON文字列混入防止）
+      } else if (authData.rate && !isNaN(parseFloat(authData.rate))) {
+        // 旧形式（共通掛率の数値文字列）の場合のみセット
+        window._custRate = authData.rate;
       }
-      if (authData.rate) window._custRate = authData.rate;
       lineProfile = await liff.getProfile();
     }
   } catch(e) { console.log('LIFF init failed:', e); }
