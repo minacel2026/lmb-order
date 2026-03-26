@@ -646,13 +646,16 @@ async function init() {
           </div>`;
         return;
       }
-      // 登録顧客の掛け率を保存
+      // 登録顧客の掛け率を保存（productRates → rate の順）
+      if (authData.productRates && Array.isArray(authData.productRates)) {
+        window._custProductRates = authData.productRates;
+      }
       if (authData.rate) window._custRate = authData.rate;
       lineProfile = await liff.getProfile();
     }
   } catch(e) { console.log('LIFF init failed:', e); }
 
-  // 在庫取得
+  // 在庫取得（掛率設定後にrenderProducts）
   await loadStock();
   renderProducts();
 }
@@ -693,7 +696,7 @@ function renderProducts() {
     <div class="prod-card ${qty > 0 ? 'selected' : ''} ${outOfStock ? 'out-of-stock' : ''}" id="card-${p.name}">
       <div style="width:8px;height:8px;border-radius:50%;background:${p.color};margin-bottom:6px"></div>
       <div class="prod-name">${p.name}</div>
-      <div class="prod-price">¥${Math.round(p.price * (parseFloat(window._custRate||'7')/10) * 1.1).toLocaleString('ja-JP', {maximumFractionDigits:0})}<span style="font-size:.6rem;color:var(--wh3)">税込</span></div>
+      <div class="prod-price">¥${(()=>{ const pr=window._custProductRates; let r=parseFloat(window._custRate||'7')/10; if(pr&&Array.isArray(pr)){const f=pr.find(x=>x.key===p.name);if(f&&f.rate)r=parseFloat(f.rate)/10;} return Math.round(p.price*r*1.1).toLocaleString('ja-JP',{maximumFractionDigits:0}); })()}<span style="font-size:.6rem;color:var(--wh3)">税込</span></div>
       <div class="prod-stock ${s <= 5 && s > 0 ? 'low' : ''}">${outOfStock ? '在庫切れ' : s <= 5 ? `残り${s}本` : `在庫あり`}</div>
       ${!outOfStock ? `
       <div class="prod-qty">
@@ -721,11 +724,15 @@ function changeQty(name, delta) {
 }
 
 function updateTotal() {
-  // 掛け率取得（顧客登録済みなら自動、なければ7掛デフォルト）
-  const rate = parseFloat(window._custRate || '7') / 10;
   let total = 0;
   PRODUCTS.forEach(p => {
-    const unitPrice = Math.round(p.price * rate * 1.1); // 掛け率×税込
+    const pr = window._custProductRates;
+    let r = parseFloat(window._custRate || '7') / 10;
+    if (pr && Array.isArray(pr)) {
+      const f = pr.find(x => x.key === p.name);
+      if (f && f.rate) r = parseFloat(f.rate) / 10;
+    }
+    const unitPrice = Math.round(p.price * r * 1.1);
     total += unitPrice * (quantities[p.name] || 0);
   });
   document.getElementById('bottom-total').textContent = '¥' + total.toLocaleString();
@@ -791,11 +798,16 @@ function buildConfirm() {
   // 商品
   let prodHtml = '';
   let total = 0;
-  const _rate = parseFloat(window._custRate || '7') / 10;
   PRODUCTS.forEach(p => {
     const q = quantities[p.name] || 0;
     if (q > 0) {
-      const unitPrice = Math.round(p.price * _rate * 1.1);
+      const pr2 = window._custProductRates;
+      let _r = parseFloat(window._custRate || '7') / 10;
+      if (pr2 && Array.isArray(pr2)) {
+        const f2 = pr2.find(x => x.key === p.name);
+        if (f2 && f2.rate) _r = parseFloat(f2.rate) / 10;
+      }
+      const unitPrice = Math.round(p.price * _r * 1.1);
       const amt = unitPrice * q;
       total += amt;
       prodHtml += `<div class="order-line">
@@ -832,7 +844,15 @@ async function submitOrder() {
   PRODUCTS.forEach(p => { if ((quantities[p.name] || 0) > 0) items[p.name] = quantities[p.name]; });
 
   let total = 0;
-  PRODUCTS.forEach(p => { total += Math.round(p.price * 1.1) * (quantities[p.name] || 0); });
+  PRODUCTS.forEach(p => {
+    const prS = window._custProductRates;
+    let rS = parseFloat(window._custRate || '7') / 10;
+    if (prS && Array.isArray(prS)) {
+      const fS = prS.find(x => x.key === p.name);
+      if (fS && fS.rate) rS = parseFloat(fS.rate) / 10;
+    }
+    total += Math.round(p.price * rS * 1.1) * (quantities[p.name] || 0);
+  });
 
   const orderData = {
     action: 'saveOrder',
