@@ -686,8 +686,11 @@ select.fc option{background:var(--d3)}
           </select>
         </div>
         <div class="fg"><label>取引区分</label>
-          <select class="fc" id="si-type">
-            <option value="初期登録">初期登録</option>
+          <select class="fc" id="si-type" onchange="renderInitStock()">
+            <option value="通常仕入">通常仕入（新値）</option>
+            <option value="旧値仕入">旧値仕入（旧値）</option>
+            <option value="協賛仕入">協賛仕入（無料）</option>
+            <option value="初期登録">初期登録（合計上書き）</option>
           </select>
         </div>
         <div class="fg"><label>日付</label><input type="date" class="fc" id="si-date"></div>
