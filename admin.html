@@ -533,7 +533,7 @@ select.fc option{background:var(--d3)}
         <div class="fg"><label>支払方法</label><select class="fc" id="f-paymethod"><option>現金</option><option>売掛(銀行)</option><option>売掛(現金)</option><option>代引き</option><option>マルシェ売掛</option><option>オーク売掛</option></select></div>
       </div>
       <div class="frow">
-        <div class="fg"><label>売値条件</label><select class="fc" id="f-cond"><option>7</option><option>6</option><option>5.5</option><option>5</option><option>4.5</option><option>4</option></select></div>
+        <div class="fg"><label>売値条件</label><select class="fc" id="f-cond" onchange="calcTotal()"><option>7</option><option>6</option><option>5.5</option><option>5</option><option>4.5</option><option>4</option></select></div>
         <div class="fg"><label>TAX</label><select class="fc" id="f-tax" onchange="calcTotal()"><option value="taxあり">taxあり</option><option value="taxカット">taxカット</option></select></div>
         <div class="fg"><label>支払状況</label><select class="fc" id="f-payst"><option>未収</option><option>売掛</option><option>集金済み</option></select></div>
         <div class="fg"><label>備考</label><input class="fc" id="f-note" placeholder="LINEからのメモ等"></div>
@@ -1420,6 +1420,7 @@ const PRODS = PROD_LIST.map(p=>p.key);
 const PRICE = Object.fromEntries(PROD_LIST.map(p=>[p.key, p.price]));
 const COST  = Object.fromEntries(PROD_LIST.map(p=>[p.key, p.cost]));
 const REORDER = Object.fromEntries(PROD_LIST.map(p=>[p.key, p.reorder]));
+const PRICE2  = Object.fromEntries(PROD_LIST.map(p=>[p.key, p.price2||null]));
 const IMG   = Object.fromEntries(PROD_LIST.map(p=>[p.key, p.img]));
 
 const S={
@@ -2200,6 +2201,37 @@ function editCost(p){
   renderStock();
   toast(`✅ ${p} の仕入単価を ¥${n.toLocaleString()} に更新しました`);
 }
+function editPrice(p){
+  const cur=PRICE[p];
+  const idx=PROD_LIST.findIndex(x=>x.key===p);
+  if(idx<0)return;
+  const v=prompt(`【${p}】の新販売価格\n現在: ${cur?'¥'+cur.toLocaleString():'未設定'}`,'');
+  if(v===null)return;
+  const n=parseInt(v.replace(/[^0-9]/g,''));
+  if(isNaN(n)||n<=0){toast('⚠ 正しい金額を入力してください');return;}
+  PROD_LIST[idx].price=n;PRICE[p]=n;
+  renderStock();toast(`✅ ${p} の新価格を ¥${n.toLocaleString()} に更新しました`);
+}
+function editPrice2(p){
+  const cur=PRICE2[p];
+  const idx=PROD_LIST.findIndex(x=>x.key===p);
+  if(idx<0)return;
+  const v=prompt(`【${p}】の旧販売価格\n現在: ${cur!=null?'¥'+cur.toLocaleString():'未設定'}\n（削除する場合は空欄のままOK）`,'');
+  if(v===null)return;
+  const t=v.replace(/[^0-9]/g,'');
+  if(t===''){PROD_LIST[idx].price2=null;PRICE2[p]=null;renderStock();toast(`✅ ${p} の旧価格を削除しました`);return;}
+  const n=parseInt(t);
+  if(isNaN(n)||n<0){toast('⚠ 正しい金額を入力してください');return;}
+  PROD_LIST[idx].price2=n;PRICE2[p]=n;
+  renderStock();toast(`✅ ${p} の旧価格を ¥${n.toLocaleString()} に更新しました`);
+}
+async function deleteCustomer(id,name){
+  if(!confirm(`「${name}」を削除しますか？\nスプレッドシートからも行が削除されます。`))return;
+  S.customers=S.customers.filter(x=>String(x.id)!==String(id));
+  renderCustomers();
+  if(S.gasUrl){try{await fetch(S.gasUrl+'?action=deleteCustomer&name='+encodeURIComponent(name));addSyncLog('顧客削除: '+name);}catch(e){}}
+  toast(`「${name}」を削除しました`);
+}
 function swTab(grp,id,el){
   try{
     let view=document.getElementById('v-'+grp);
@@ -2572,7 +2604,8 @@ function updateAddPrice(){
     return;
   }
 
-  let price = PRICE[prod]||0;
+  const cond3 = parseFloat(document.getElementById('f-cond')?.value||'10');
+  let price = Math.round((PRICE[prod]||0) * cond3 / 10);
   if(tax === 'taxあり') price = Math.round(price * 1.1);
   document.getElementById('add-price-disp').textContent = '¥' + fmt(price * qty);
 
@@ -2643,8 +2676,9 @@ function renderOrderLines(){
   }
   empty.style.display = 'none';
 
+  const cond2 = parseFloat(document.getElementById('f-cond')?.value||'10');
   container.innerHTML = orderLines.map((l,i) => {
-    let price = PRICE[l.prod]||0;
+    let price = Math.round((PRICE[l.prod]||0) * cond2 / 10);
     if(tax === 'taxあり') price = Math.round(price * 1.1);
     const lineTotal = price * l.qty;
     const stock = S.stock[branch]?.[l.prod] ?? 0;
@@ -2664,9 +2698,10 @@ function renderOrderLines(){
 
 function calcTotal(){
   const tax = document.getElementById('f-tax')?.value||'taxあり';
+  const cond = parseFloat(document.getElementById('f-cond')?.value||'10');
   let t = 0;
   orderLines.forEach(l => {
-    let pr = PRICE[l.prod]||0;
+    let pr = Math.round((PRICE[l.prod]||0) * cond / 10);
     if(tax === 'taxあり') pr = Math.round(pr * 1.1);
     t += pr * l.qty;
   });
@@ -2818,6 +2853,10 @@ function renderStock(){
       const bw = ro ? Math.min(100,Math.round(total/Math.max(ro*2,1)*100)) : Math.min(100,Math.round(total/200*100));
       const costVal = COST[p];
       const costStr = costVal!=null ? `¥${costVal.toLocaleString()}/本` : '— (編集)';
+      const priceVal = PRICE[p];
+      const priceStr = priceVal ? `¥${priceVal.toLocaleString()}` : '— (編集)';
+      const price2Val = PRICE2[p];
+      const price2Str = price2Val!=null ? `¥${price2Val.toLocaleString()}` : '未設定';
 
       const card = document.createElement('div');
       card.className = 'sc' + (alertCls ? ' '+alertCls : '');
@@ -2833,6 +2872,8 @@ function renderStock(){
           <div class="sc-nm">${p}</div>
           <div class="sc-ct ${alertCls}">${total}</div>
           <div class="sc-cost" onclick="event.stopPropagation();editCost('${p}')" style="cursor:pointer;text-decoration:underline dotted" title="クリックで仕入値編集">${costStr}</div>
+          <div class="sc-cost" onclick="event.stopPropagation();editPrice('${p}')" style="cursor:pointer;text-decoration:underline dotted" title="新価格編集">新:${priceStr}</div>
+          <div class="sc-cost" onclick="event.stopPropagation();editPrice2('${p}')" style="cursor:pointer;font-size:.6rem;color:${price2Val!=null?'#c9a84c':'rgba(255,255,255,.28)'};text-decoration:underline dotted" title="旧価格登録・編集">旧:${price2Str}</div>
           <div class="sbar-w"><div class="sbar ${alertCls}" style="width:${bw}%"></div></div>`;
       } else {
         // 単店舗モード: 5段内訳表示
@@ -2858,7 +2899,9 @@ function renderStock(){
               <span class="sc-bk-lbl">LAID</span><span class="sc-bk-val">${lendLAID}</span>
             </div>
           </div>
-          <div class="sc-cost" onclick="event.stopPropagation();editCost('${p}')" style="cursor:pointer;text-decoration:underline dotted;margin-top:.3rem" title="クリックで仕入値編集">${costStr}</div>`;
+          <div class="sc-cost" onclick="event.stopPropagation();editCost('${p}')" style="cursor:pointer;text-decoration:underline dotted;margin-top:.3rem" title="クリックで仕入値編集">${costStr}</div>
+          <div class="sc-cost" onclick="event.stopPropagation();editPrice('${p}')" style="cursor:pointer;text-decoration:underline dotted" title="新価格編集">新:${priceStr}</div>
+          <div class="sc-cost" onclick="event.stopPropagation();editPrice2('${p}')" style="cursor:pointer;font-size:.6rem;color:${price2Val!=null?'#c9a84c':'rgba(255,255,255,.28)'};text-decoration:underline dotted" title="旧価格登録・編集">旧:${price2Str}</div>`;
       }
 
       cardsRow.appendChild(card);
@@ -2920,7 +2963,8 @@ function openProdMasterModal(){
       <div class="fg"><label>商品名（表示）</label><input class="fc" id="np-name" placeholder="例: ロッソ"></div>
       <div class="fg"><label>カテゴリ</label><select class="fc" id="np-cat"><option>スプマンテ</option><option>ワイン</option><option>ギフト</option><option>その他</option></select></div>
       <div class="fg"><label>仕入単価</label><input type="number" class="fc" id="np-cost" placeholder="0"></div>
-      <div class="fg"><label>販売価格</label><input type="number" class="fc" id="np-price" placeholder="0"></div>
+      <div class="fg"><label>販売価格（新）</label><input type="number" class="fc" id="np-price" placeholder="0"></div>
+      <div class="fg"><label>販売価格（旧）</label><input type="number" class="fc" id="np-price2" placeholder="未設定"></div>
       <div class="fg"><label>発注点</label><input type="number" class="fc" id="np-reorder" placeholder="6"></div>
     </div>
     <button class="btn btn-p" style="margin-top:.8rem" onclick="addProdMaster()">追加</button>`;
@@ -2936,8 +2980,9 @@ function addProdMaster(){
   const price=parseInt(document.getElementById('np-price').value)||0;
   const reorder=parseInt(document.getElementById('np-reorder').value)||null;
   const cat=document.getElementById('np-cat').value;
-  PROD_LIST.push({key:name,name,fullName:name,cat,cost,price,reorder,img:''});
-  PRODS.push(name);PRICE[name]=price;COST[name]=cost;REORDER[name]=reorder;IMG[name]='';
+  const price2v=parseInt(document.getElementById('np-price2').value)||null;
+  PROD_LIST.push({key:name,name,fullName:name,cat,cost,price,price2:price2v,reorder,img:''});
+  PRODS.push(name);PRICE[name]=price;PRICE2[name]=price2v;COST[name]=cost;REORDER[name]=reorder;IMG[name]='';
   ['仙台','京都'].forEach(b=>{if(!S.stock[b])S.stock[b]={};S.stock[b][name]=0;});
   document.getElementById('modal').classList.remove('open');renderStock();toast(`「${name}」を商品マスタに追加しました`);
 }
@@ -3291,7 +3336,7 @@ function renderCustomers(){
       <td style="color:var(--wh2);white-space:nowrap;font-size:.75rem">${c.branch||'-'}</td>
       <td style="color:var(--wh2);white-space:nowrap;font-size:.75rem;max-width:130px;overflow:hidden;text-overflow:ellipsis">${c.area||'-'}</td>
       <td style="color:var(--wh2);white-space:nowrap;font-size:.75rem">${c.staff||'-'}</td>
-      <td style="white-space:nowrap"><span style="background:rgba(201,168,76,.18);color:var(--gold);padding:2px 7px;border-radius:10px;font-weight:700;font-size:.7rem">${(()=>{if(c.productRates&&Array.isArray(c.productRates)){const r=c.productRates.find(x=>x.rate);return r?r.rate+'掛':'設定済';}return(c.rate||'7')+'掛';})()}</span></td>
+      <td style="white-space:nowrap"><span style="background:rgba(201,168,76,.18);color:var(--gold);padding:2px 7px;border-radius:10px;font-weight:700;font-size:.7rem">${c.rate||'7'}掛</span></td>
       <td style="color:var(--wh3);font-size:.72rem;white-space:nowrap">${c.referrer||'-'}</td>
       <td style="text-align:right;white-space:nowrap;color:${unpaid?'var(--red)':'var(--wh3)'};font-variant-numeric:tabular-nums;font-weight:${unpaid?700:400};font-size:.78rem">${unpaid?'¥'+fmt(unpaid):'-'}</td>
       <td style="text-align:center;white-space:nowrap">${c.sponsorEnabled?`<span style="color:var(--grn);font-size:.68rem">🎁${sbal.pts}本</span>`:'<span style="color:var(--wh3);font-size:.7rem">-</span>'}</td>
@@ -3414,25 +3459,19 @@ function submitCustomer(){
   renderCustomers();
 }
 
-async function deleteCustomer(id,name){
-  if(!confirm(`「${name}」を削除しますか？\nスプレッドシートからも行が削除されます。`))return;
-  S.customers=S.customers.filter(x=>String(x.id)!==String(id));
-  renderCustomers();
-  if(S.gasUrl){try{await fetch(S.gasUrl+'?action=deleteCustomer&name='+encodeURIComponent(name));addSyncLog('顧客削除: '+name);}catch(e){}}
-  toast(`「${name}」を削除しました`);
-}
-// ─── 商品別掛率テーブル ──────────────────────────────────────────
+// ─── 商品別掛率テーブル ──────────────────────────────────────────────────
 function initRatesTable(){
   const tbody=document.getElementById('cn-rates-body');
   if(!tbody)return;
   tbody.innerHTML=PROD_LIST.map(p=>{
-    const h2=typeof PRICE2!=='undefined'&&PRICE2[p.key]!=null;
+    const h2=PRICE2[p.key]!=null;
     const nL=p.price?'新(¥'+p.price.toLocaleString()+')':'新価格';
     const oL=h2?'旧(¥'+PRICE2[p.key].toLocaleString()+')':null;
     return `<tr style="border-bottom:1px solid rgba(255,255,255,.05)">
       <td style="padding:.28rem .5rem;color:var(--wh2);font-size:.7rem;white-space:nowrap">${p.name}</td>
       <td style="padding:.28rem .3rem;text-align:center">
-        <select class="fc cn-rate-sel" data-key="${p.key}" style="font-size:.68rem;padding:.18rem .22rem;width:66px">
+        <select class="fc cn-rate-sel" data-key="${p.key}"
+          style="font-size:.68rem;padding:.18rem .22rem;width:66px">
           <option value="">デフォ</option>
           <option value="10">10掛</option><option value="9">9掛</option>
           <option value="8">8掛</option><option value="7">7掛</option>
@@ -3442,7 +3481,8 @@ function initRatesTable(){
         </select>
       </td>
       <td style="padding:.28rem .3rem;text-align:center">
-        <select class="fc cn-tax-sel" data-key="${p.key}" style="font-size:.68rem;padding:.18rem .22rem;width:74px">
+        <select class="fc cn-tax-sel" data-key="${p.key}"
+          style="font-size:.68rem;padding:.18rem .22rem;width:74px">
           <option value="taxあり">taxあり</option>
           <option value="taxカット">taxカット</option>
         </select>
@@ -3488,7 +3528,7 @@ function setProductRates(data){
     document.querySelectorAll('#cn-rates-body .cn-rate-sel').forEach(s=>{s.value=data;});
   }
 }
-// ─────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
 function openCustomerForm(){
   const panel=document.getElementById('cst-cn');
   if(!panel)return;
@@ -4682,15 +4722,25 @@ function doGet(e) {
     for (let i = 1; i < rows.length; i++) {
       if (rows[i][9] === uid) {
         return json({
-          ok:true, name:rows[i][0], kana:rows[i][1], branch:rows[i][2],
-          tel:rows[i][3], owner:rows[i][4], ownerTel:rows[i][5],
-          staff:rows[i][7], lineId:rows[i][8],
+          ok:      true,
+          name:    rows[i][0],   // 店舗名
+          kana:    rows[i][1],   // フリガナ
+          branch:  rows[i][2],   // 拠点
+          tel:     rows[i][3],   // 店舗電話
+          owner:   rows[i][4],   // 代表者名
+          ownerTel:rows[i][5],   // 代表者電話
+          staff:   rows[i][7],   // 弊社担当
+          lineId:  rows[i][8],   // LINE ID
           productRates:(()=>{try{return JSON.parse(rows[i][10]);}catch(e){return rows[i][10]||'';} })(),
           rate:rows[i][10],
-          zip:rows[i][12], pref:rows[i][13], city:rows[i][14],
-          addr1:rows[i][15], addr2:rows[i][16],
-          contact:(()=>{try{const c=JSON.parse(rows[i][6]||'[]');return c[0]?.name||'';}catch(e){return '';}})(),
-          contactTel:(()=>{try{const c=JSON.parse(rows[i][6]||'[]');return c[0]?.tel||'';}catch(e){return '';}})(),
+          zip:     rows[i][12],  // 郵便番号
+          pref:    rows[i][13],  // 都道府県
+          city:    rows[i][14],  // 市町村郡
+          addr1:   rows[i][15],  // 番地
+          addr2:   rows[i][16],  // 建物名
+          // 担当者リストから最初の担当者名・電話を取得
+          contact: (()=>{ try{ const c=JSON.parse(rows[i][6]||'[]'); return c[0]?.name||''; }catch(e){return '';} })(),
+          contactTel: (()=>{ try{ const c=JSON.parse(rows[i][6]||'[]'); return c[0]?.tel||''; }catch(e){return '';} })(),
         });
       }
     }
@@ -4710,6 +4760,7 @@ function doGet(e) {
     }))});
   }
 
+  // ★ ブラウザno-cors対策：GETのpayloadパラメータで書き込みを受け取る
   if (e.parameter.payload) {
     try {
       const body = JSON.parse(e.parameter.payload);
@@ -4730,15 +4781,17 @@ function doGet(e) {
     }))});
   }
 
+  // 顧客にUIDを紐付け
   if (action === 'linkUid') {
-    const uid = e.parameter.uid;
+    const uid       = e.parameter.uid;
     const storeName = e.parameter.store;
     if (!uid || !storeName) return json({ error: 'uid and store required' });
     const sh = getSheet('顧客');
     const d  = sh.getDataRange().getValues();
     for (let i = 1; i < d.length; i++) {
       if (d[i][0] === storeName) {
-        sh.getRange(i+1, 10).setValue(uid);
+        sh.getRange(i+1, 10).setValue(uid); // J列: LINE UID
+        // 未登録UIDシートから該当行を削除
         const ps = getSheet('未登録UID');
         const pd = ps.getDataRange().getValues();
         for (let j = 1; j < pd.length; j++) {
@@ -4750,6 +4803,7 @@ function doGet(e) {
     return json({ error: '顧客が見つかりません' });
   }
 
+  // 未登録UIDをスプシから削除
   if (action === 'deleteCustomer') {
     var nm = e.parameter.name;
     if (!nm) return json({ error: 'name required' });
@@ -4775,10 +4829,16 @@ function doGet(e) {
   return json({ error: 'unknown action' });
 }
 
+// ================================================
+// doOptions：CORSプリフライト対応
+// ================================================
 function doOptions(e) {
   return ContentService.createTextOutput(JSON.stringify({ok:true})).setMimeType(ContentService.MimeType.JSON);
 }
 
+// ================================================
+// doPost：POSTリクエスト処理
+// ================================================
 function doPost(e) {
   let body;
   try { body = JSON.parse(e.postData.contents); } catch(err) { return json({ error:'invalid JSON' }); }
@@ -4788,16 +4848,19 @@ function doPost(e) {
   if (body.action === 'updateStock')     { updateStockInSheet(body.branch, body.product, body.qty); return json({ok:true}); }
   if (body.action === 'saveCustomer')    { saveCustomerToSheet(body); return json({ok:true}); }
 
+  // LINE Webhook
   (body.events||[]).forEach(ev => {
     if (ev.type !== 'message' || ev.message.type !== 'text') return;
     const text        = ev.message.text;
     const uid         = ev.source.userId;
     const displayName = ev.source.displayName || '';
 
+    // ★ 未登録UIDチェック：顧客シートにUIDが存在するか確認
     const custRows = getSheet('顧客').getDataRange().getValues();
     const registered = custRows.slice(1).some(r => String(r[9]) === uid);
 
     if (!registered) {
+      // 未登録リストに記録（重複は追加しない）
       const pendingSheet = getSheet('未登録UID');
       const pendingData  = pendingSheet.getDataRange().getValues();
       const alreadyPending = pendingData.some(r => String(r[1]) === uid);
@@ -4807,9 +4870,7 @@ function doPost(e) {
         }
         pendingSheet.appendRow([new Date().toLocaleString('ja-JP'), uid, displayName, text, '未設定']);
         if (ADMIN_USER_ID && ADMIN_USER_ID !== 'YOUR_LINE_USER_ID') {
-          push(ADMIN_USER_ID,
-            '🔔 未登録ユーザーからメッセージ\n名前：' + displayName + '\nUID：' + uid + '\n管理画面で顧客に紐付けてください'
-          );
+          push(ADMIN_USER_ID, '🔔 未登録ユーザーからメッセージ\n名前：' + displayName + '\nUID：' + uid + '\n管理画面で顧客に紐付けてください');
         }
       }
       reply(ev.replyToken, 'メッセージありがとうございます。\n担当者より折り返しご連絡いたします。');
@@ -4848,52 +4909,92 @@ function getSheet(name) {
 function saveOrderToSheet(o) {
   getSheet('注文受付').appendRow([
     o.timestamp || new Date().toLocaleString('ja-JP'),
-    o.branch||'', o.staff||'', o.store||'', o.area||'',
-    typeof o.items==='object' ? JSON.stringify(o.items) : (o.items||''),
-    o.amount||'', o.payMethod||'', o.payStatus||'未収',
-    o.status||'新規', o.note||'', o.uid||''
+    o.branch    || '',
+    o.staff     || '',
+    o.store     || '',
+    o.area      || '',
+    typeof o.items === 'object' ? JSON.stringify(o.items) : (o.items || ''),
+    o.amount    || '',
+    o.payMethod || '',
+    o.payStatus || '未収',
+    o.status    || '新規',
+    o.note      || '',
+    o.uid       || ''
   ]);
 }
 
 function saveCustomerToSheet(c) {
   const sh = getSheet('顧客');
   const d  = sh.getDataRange().getValues();
+
+  // 電話番号の先頭シングルクォート除去
   const tel      = String(c.tel      || '').replace(/^'+/, '');
   const ownerTel = String(c.ownerTel || '').replace(/^'+/, '');
+
+  // 担当者リスト（contacts）をJSON文字列化
   let contacts = '';
   if (c.contacts && Array.isArray(c.contacts)) {
     contacts = JSON.stringify(c.contacts);
   } else if (typeof c.contacts === 'string') {
     contacts = c.contacts;
   }
+  // ヘッダー
   const HEADER = [
-    '店舗名','フリガナ','拠点','店舗電話','代表者名','代表者電話',
-    '担当者リスト','弊社担当','LINE ID','LINE UID','掛け率','紹介者',
-    '郵便番号','都道府県','市町村郡','番地','建物名',
-    '請求書宛名','振込名義','備考','協賛','購入条件','協賛本数','対象商品'
+    '店舗名', 'フリガナ', '拠点',
+    '店舗電話', '代表者名', '代表者電話',
+    '担当者リスト', '弊社担当',
+    'LINE ID', 'LINE UID',
+    '掛け率', '紹介者',
+    '郵便番号', '都道府県', '市町村郡', '番地', '建物名',
+    '請求書宛名', '振込名義', '備考',
+    '協賛', '購入条件', '協賛本数', '対象商品'
   ];
+
   const row = [
-    c.name||'', c.kana||'', c.branch||'', tel, c.owner||'', ownerTel,
-    contacts, c.staff||'', c.lineId||'', c.lineUid||'',
+    c.name     || '',
+    c.kana     || '',
+    c.branch   || '',
+    tel,
+    c.owner    || '',
+    ownerTel,
+    contacts,
+    c.staff    || '',
+    c.lineId   || '',
+    c.lineUid  || '',
     c.productRates ? JSON.stringify(c.productRates) : (c.rate||''),
-    c.referrer||'', c.zip||'', c.pref||'', c.city||'',
-    c.addr1||'', c.addr2||'', c.invName||'', c.bankName||'', c.note||'',
-    c.sponsorEnabled?'あり':'なし', c.sponsorTrigger||'',
-    c.sponsorReward||'', c.sponsorProduct||''
+    c.referrer || '',
+    c.zip      || '',
+    c.pref     || '',
+    c.city     || '',
+    c.addr1    || '',
+    c.addr2    || '',
+    c.invName  || '',
+    c.bankName || '',
+    c.note     || '',
+    c.sponsorEnabled ? 'あり' : 'なし',
+    c.sponsorTrigger || '',
+    c.sponsorReward  || '',
+    c.sponsorProduct || ''
   ];
+
+  // 既存行を更新
   for (let i = 1; i < d.length; i++) {
     if (d[i][0] === c.name) {
       sh.getRange(i+1, 1, 1, row.length).setValues([row]);
-      sh.getRange(i+1, 4).setNumberFormat('@');
-      sh.getRange(i+1, 6).setNumberFormat('@');
+      sh.getRange(i+1, 4).setNumberFormat('@'); // 店舗電話：文字列
+      sh.getRange(i+1, 6).setNumberFormat('@'); // 代表者電話：文字列
       return;
     }
   }
+
+  // ヘッダーがなければ追加
   if (sh.getLastRow() === 0) sh.appendRow(HEADER);
+
+  // 新規追加
   const newRow = sh.getLastRow() + 1;
   sh.appendRow(row);
-  sh.getRange(newRow, 4).setNumberFormat('@');
-  sh.getRange(newRow, 6).setNumberFormat('@');
+  sh.getRange(newRow, 4).setNumberFormat('@'); // 店舗電話：文字列
+  sh.getRange(newRow, 6).setNumberFormat('@'); // 代表者電話：文字列
 }
 
 function updatePayInSheet(orderId, status) {
