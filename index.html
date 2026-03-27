@@ -432,7 +432,7 @@
   <div class="section">
     <div class="section-title">お客様情報</div>
     <label>店舗名 <span style="color:var(--red)">*</span></label>
-    <input type="text" id="p1-store" placeholder="例：Club Camels">
+    <input type="text" id="p1-store" placeholder="例：Sclass">
     <label>お届け先名 <span style="color:var(--red)">*</span></label>
     <input type="text" id="p1-delivery" placeholder="例：田中太郎">
     <label>郵便番号</label>
@@ -646,12 +646,12 @@ async function init() {
           </div>`;
         return;
       }
-      // 登録顧客の掛け率を保存（productRates → rate の順）
+      // 登録顧客の掛け率を保存
       if (authData.productRates && Array.isArray(authData.productRates)) {
         window._custProductRates = authData.productRates;
-        // productRatesがある場合は共通rateは使わない（JSON文字列混入防止）
-      } else if (authData.rate && !isNaN(parseFloat(authData.rate))) {
-        // 旧形式（共通掛率の数値文字列）の場合のみセット
+      }
+      // 共通rateも保存（productRatesにrateが空の商品のフォールバック用）
+      if (authData.rate && !isNaN(parseFloat(authData.rate))) {
         window._custRate = authData.rate;
       }
       lineProfile = await liff.getProfile();
