@@ -4722,33 +4722,33 @@ function doGet(e) {
     if (rows.length === 0) return json({ ok:false });
     const hdrs = rows[0].map(String);
     for (let i = 1; i < rows.length; i++) {
-      if (rows[i][9] === uid) {
+      if (rows[i][14] === uid) {  // O列: LINE UID
         const pr = [];
-        for (let col = 23; col < hdrs.length; col++) {
+        for (let col = 25; col < hdrs.length; col++) {
           if (hdrs[col] && rows[i][col] !== '' && rows[i][col] !== undefined) {
             pr.push({ key: hdrs[col], rate: String(rows[i][col]) });
           }
         }
         return json({
           ok:      true,
-          name:    rows[i][0],   // 店舗名
-          kana:    rows[i][1],   // フリガナ
-          branch:  rows[i][2],   // 拠点
-          tel:     rows[i][3],   // 店舗電話
-          owner:   rows[i][4],   // 代表者名
-          ownerTel:rows[i][5],   // 代表者電話
-          staff:   rows[i][7],   // 弊社担当
-          lineId:  rows[i][8],   // LINE ID
+          branch:  rows[i][0],   // A: 拠点
+          staff:   rows[i][1],   // B: 弊社担当
+          name:    rows[i][2],   // C: 店舗名
+          kana:    rows[i][3],   // D: フリガナ
+          tel:     rows[i][4],   // E: 店舗電話
+          owner:   rows[i][5],   // F: 代表者名
+          ownerTel:rows[i][6],   // G: 代表者電話
+          zip:     rows[i][8],   // I: 郵便番号
+          pref:    rows[i][9],   // J: 都道府県
+          city:    rows[i][10],  // K: 市町村郡
+          addr1:   rows[i][11],  // L: 番地
+          addr2:   rows[i][12],  // M: 建物名
+          lineId:  rows[i][13],  // N: LINE ID
           productRates: pr,
           rate: pr.length > 0 ? (pr[0].rate || '7') : '7',
-          zip:     rows[i][12],  // 郵便番号
-          pref:    rows[i][13],  // 都道府県
-          city:    rows[i][14],  // 市町村郡
-          addr1:   rows[i][15],  // 番地
-          addr2:   rows[i][16],  // 建物名
-          // 担当者リストから最初の担当者名・電話を取得
-          contact: (()=>{ try{ const c=JSON.parse(rows[i][6]||'[]'); return c[0]?.name||''; }catch(e){return '';} })(),
-          contactTel: (()=>{ try{ const c=JSON.parse(rows[i][6]||'[]'); return c[0]?.tel||''; }catch(e){return '';} })(),
+          // H列: 担当者リストから最初の担当者名・電話を取得
+          contact: (()=>{ try{ const c=JSON.parse(rows[i][7]||'[]'); return c[0]?.name||''; }catch(e){return '';} })(),
+          contactTel: (()=>{ try{ const c=JSON.parse(rows[i][7]||'[]'); return c[0]?.tel||''; }catch(e){return '';} })(),
         });
       }
     }
@@ -4761,23 +4761,25 @@ function doGet(e) {
     const hdrs = rows[0].map(String);
     return json({ customers: rows.slice(1).map(r => {
       const pr = [];
-      for (let col = 23; col < hdrs.length; col++) {
+      for (let col = 25; col < hdrs.length; col++) {
         if (hdrs[col] && r[col] !== '' && r[col] !== undefined) {
           pr.push({ key: hdrs[col], rate: String(r[col]) });
         }
       }
       return {
-        name:r[0], kana:r[1], branch:r[2], tel:r[3],
-        owner:r[4], ownerTel:r[5], contacts:r[6], staff:r[7],
-        lineId:r[8], lineUid:r[9],
+        branch:r[0], staff:r[1], name:r[2], kana:r[3], tel:r[4],
+        owner:r[5], ownerTel:r[6], contacts:r[7],
+        zip:r[8], pref:r[9], city:r[10], addr1:r[11], addr2:r[12],
+        lineId:r[13], lineUid:r[14],
+        referrer:r[15], invName:r[16],
+        bankNames:[r[17],r[18],r[19]].filter(Boolean), bankName:r[17]||'',
+        note:r[20],
         productRates: pr,
-        rate:pr.length > 0 ? (pr[0].rate || '') : '', referrer:r[11],
-        zip:r[12], pref:r[13], city:r[14], addr1:r[15], addr2:r[16],
-        invName:r[17], bankName:r[18], note:r[19],
-        sponsorEnabled: r[19] === 'あり',
-        sponsorTrigger: r[20] || '',
-        sponsorReward:  r[21] || '',
-        sponsorProduct: r[22] || ''
+        rate: pr.length > 0 ? (pr[0].rate || '') : '',
+        sponsorEnabled: r[21] === 'あり',
+        sponsorTrigger: r[22] || '',
+        sponsorReward:  r[23] || '',
+        sponsorProduct: r[24] || ''
       };
     })});
   }
@@ -4960,42 +4962,45 @@ function saveCustomerToSheet(c) {
   } else if (typeof c.contacts === 'string') {
     contacts = c.contacts;
   }
-  // ヘッダー（掛け率なし・23列）
+  // ヘッダー（25列・フォーム順）
   const HEADER = [
-    '店舗名', 'フリガナ', '拠点',
-    '店舗電話', '代表者名', '代表者電話',
-    '担当者リスト', '弊社担当',
-    'LINE ID', 'LINE UID',
-    '紹介者',
+    '拠点', '弊社担当', '店舗名', 'フリガナ', '店舗電話',
+    '代表者名', '代表者電話', '担当者リスト',
     '郵便番号', '都道府県', '市町村郡', '番地', '建物名',
-    '請求書宛名', '振込名義', '備考',
+    'LINE ID', 'LINE UID',
+    '紹介者', '請求書宛名',
+    '振込名義①', '振込名義②', '振込名義③',
+    '備考',
     '協賛', '購入条件', '協賛本数', '対象商品'
   ];
 
+  const bankN = Array.isArray(c.bankNames) ? c.bankNames : (c.bankName ? [c.bankName] : []);
   const baseRow = [
-    c.name     || '',
-    c.kana     || '',
-    c.branch   || '',
-    tel,
-    c.owner    || '',
-    ownerTel,
-    contacts,
-    c.staff    || '',
-    c.lineId   || '',
-    c.lineUid  || '',
-    c.referrer || '',
-    c.zip      || '',
-    c.pref     || '',
-    c.city     || '',
-    c.addr1    || '',
-    c.addr2    || '',
-    c.invName  || '',
-    c.bankName || '',
-    c.note     || '',
-    c.sponsorEnabled ? 'あり' : 'なし',
-    c.sponsorTrigger || '',
-    c.sponsorReward  || '',
-    c.sponsorProduct || ''
+    c.branch   || '',   // A: 拠点
+    c.staff    || '',   // B: 弊社担当
+    c.name     || '',   // C: 店舗名
+    c.kana     || '',   // D: フリガナ
+    tel,                // E: 店舗電話
+    c.owner    || '',   // F: 代表者名
+    ownerTel,           // G: 代表者電話
+    contacts,           // H: 担当者リスト
+    c.zip      || '',   // I: 郵便番号
+    c.pref     || '',   // J: 都道府県
+    c.city     || '',   // K: 市町村郡
+    c.addr1    || '',   // L: 番地
+    c.addr2    || '',   // M: 建物名
+    c.lineId   || '',   // N: LINE ID
+    c.lineUid  || '',   // O: LINE UID
+    c.referrer || '',   // P: 紹介者
+    c.invName  || '',   // Q: 請求書宛名
+    bankN[0]   || '',   // R: 振込名義①
+    bankN[1]   || '',   // S: 振込名義②
+    bankN[2]   || '',   // T: 振込名義③
+    c.note     || '',   // U: 備考
+    c.sponsorEnabled ? 'あり' : 'なし',  // V: 協賛
+    c.sponsorTrigger || '',              // W: 購入条件
+    c.sponsorReward  || '',              // X: 協賛本数
+    c.sponsorProduct || ''               // Y: 対象商品
   ];
 
   // 商品別掛率マップ
@@ -5017,18 +5022,18 @@ function saveCustomerToSheet(c) {
     }
   });
 
-  // 最終行 = 基本23列 + 商品別掛率
+  // 最終行 = 基本25列 + 商品別掛率
   const row = baseRow.slice();
-  for (let col = 23; col < headerRow.length; col++) {
+  for (let col = 25; col < headerRow.length; col++) {
     row.push(ratesMap[headerRow[col]] || '');
   }
 
-  // 既存行を更新
+  // 既存行を更新（店舗名=C列=index2 で照合）
   for (let i = 1; i < d.length; i++) {
-    if (d[i][0] === c.name) {
+    if (d[i][2] === c.name) {
       sh.getRange(i+1, 1, 1, row.length).setValues([row]);
-      sh.getRange(i+1, 4).setNumberFormat('@'); // 店舗電話：文字列
-      sh.getRange(i+1, 6).setNumberFormat('@'); // 代表者電話：文字列
+      sh.getRange(i+1, 5).setNumberFormat('@'); // 店舗電話(E列)：文字列
+      sh.getRange(i+1, 7).setNumberFormat('@'); // 代表者電話(G列)：文字列
       return;
     }
   }
@@ -5036,8 +5041,8 @@ function saveCustomerToSheet(c) {
   // 新規追加
   const newRow = sh.getLastRow() + 1;
   sh.appendRow(row);
-  sh.getRange(newRow, 4).setNumberFormat('@'); // 店舗電話：文字列
-  sh.getRange(newRow, 6).setNumberFormat('@'); // 代表者電話：文字列
+  sh.getRange(newRow, 5).setNumberFormat('@'); // 店舗電話(E列)：文字列
+  sh.getRange(newRow, 7).setNumberFormat('@'); // 代表者電話(G列)：文字列
 }
 
 function updatePayInSheet(orderId, status) {
