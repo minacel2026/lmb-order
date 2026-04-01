@@ -4720,21 +4720,14 @@ function doGet(e) {
     if (!uid) return json({ ok:false, error:'uid missing' });
     const rows = getSheet('顧客').getDataRange().getValues();
     if (rows.length === 0) return json({ ok:false });
-    const headers = rows[0].map(String);
-    const BASE_COL_COUNT = 24; // 基本列数
+    const hdrs = rows[0].map(String);
     for (let i = 1; i < rows.length; i++) {
       if (rows[i][9] === uid) {
-        // 商品別掛け率を末尾の個別列から読み込む
-        const productRates = [];
-        for (let col = BASE_COL_COUNT; col < headers.length; col++) {
-          if (headers[col] && rows[i][col] !== '' && rows[i][col] !== undefined) {
-            productRates.push({ key: headers[col], rate: String(rows[i][col]) });
+        const pr = [];
+        for (let col = 23; col < hdrs.length; col++) {
+          if (hdrs[col] && rows[i][col] !== '' && rows[i][col] !== undefined) {
+            pr.push({ key: hdrs[col], rate: String(rows[i][col]) });
           }
-        }
-        // 個別列がなければ旧形式(JSON)からフォールバック
-        let ratesResult = productRates;
-        if (productRates.length === 0 && rows[i][10]) {
-          try { ratesResult = JSON.parse(rows[i][10]); } catch(e) { ratesResult = []; }
         }
         return json({
           ok:      true,
@@ -4746,8 +4739,8 @@ function doGet(e) {
           ownerTel:rows[i][5],   // 代表者電話
           staff:   rows[i][7],   // 弊社担当
           lineId:  rows[i][8],   // LINE ID
-          productRates: ratesResult,
-          rate:    String(rows[i][10] || '7'),
+          productRates: pr,
+          rate: pr.length > 0 ? (pr[0].rate || '7') : '7',
           zip:     rows[i][12],  // 郵便番号
           pref:    rows[i][13],  // 都道府県
           city:    rows[i][14],  // 市町村郡
@@ -4765,29 +4758,26 @@ function doGet(e) {
   if (action === 'getCustomers') {
     const rows = getSheet('顧客').getDataRange().getValues();
     if (rows.length === 0) return json({ customers: [] });
-    const headers = rows[0].map(String);
-    const BASE_COL_COUNT = 24; // 基本列数
+    const hdrs = rows[0].map(String);
     return json({ customers: rows.slice(1).map(r => {
-      // 商品別掛け率を末尾の個別列から読み込む
-      const productRates = [];
-      for (let col = BASE_COL_COUNT; col < headers.length; col++) {
-        if (headers[col] && r[col] !== '' && r[col] !== undefined) {
-          productRates.push({ key: headers[col], rate: String(r[col]) });
+      const pr = [];
+      for (let col = 23; col < hdrs.length; col++) {
+        if (hdrs[col] && r[col] !== '' && r[col] !== undefined) {
+          pr.push({ key: hdrs[col], rate: String(r[col]) });
         }
-      }
-      // 個別列がなければ旧形式(JSON)からフォールバック
-      let ratesResult = productRates;
-      if (productRates.length === 0 && r[10]) {
-        try { ratesResult = JSON.parse(r[10]); } catch(e) { ratesResult = []; }
       }
       return {
         name:r[0], kana:r[1], branch:r[2], tel:r[3],
         owner:r[4], ownerTel:r[5], contacts:r[6], staff:r[7],
         lineId:r[8], lineUid:r[9],
-        productRates: ratesResult,
-        rate:String(r[10]||''), referrer:r[11],
+        productRates: pr,
+        rate:pr.length > 0 ? (pr[0].rate || '') : '', referrer:r[11],
         zip:r[12], pref:r[13], city:r[14], addr1:r[15], addr2:r[16],
-        invName:r[17], bankName:r[18], note:r[19]
+        invName:r[17], bankName:r[18], note:r[19],
+        sponsorEnabled: r[19] === 'あり',
+        sponsorTrigger: r[20] || '',
+        sponsorReward:  r[21] || '',
+        sponsorProduct: r[22] || ''
       };
     })});
   }
@@ -4970,20 +4960,18 @@ function saveCustomerToSheet(c) {
   } else if (typeof c.contacts === 'string') {
     contacts = c.contacts;
   }
-
-  // 基本ヘッダー（24列）
-  const BASE_HEADER = [
+  // ヘッダー（掛け率なし・23列）
+  const HEADER = [
     '店舗名', 'フリガナ', '拠点',
     '店舗電話', '代表者名', '代表者電話',
     '担当者リスト', '弊社担当',
     'LINE ID', 'LINE UID',
-    '掛け率', '紹介者',
+    '紹介者',
     '郵便番号', '都道府県', '市町村郡', '番地', '建物名',
     '請求書宛名', '振込名義', '備考',
     '協賛', '購入条件', '協賛本数', '対象商品'
   ];
 
-  // 基本行データ（24列）
   const baseRow = [
     c.name     || '',
     c.kana     || '',
@@ -4995,7 +4983,6 @@ function saveCustomerToSheet(c) {
     c.staff    || '',
     c.lineId   || '',
     c.lineUid  || '',
-    c.rate     || '',  // 共通掛け率
     c.referrer || '',
     c.zip      || '',
     c.pref     || '',
@@ -5011,22 +4998,18 @@ function saveCustomerToSheet(c) {
     c.sponsorProduct || ''
   ];
 
-  // productRates から商品別掛率マップを作成
+  // 商品別掛率マップ
   const ratesMap = {};
   if (c.productRates && Array.isArray(c.productRates)) {
     c.productRates.forEach(function(pr) { if (pr.key) ratesMap[pr.key] = pr.rate || ''; });
   }
 
-  // ヘッダー行を取得（なければ基本ヘッダーを書き込む）
-  let headerRow;
-  if (d.length === 0) {
-    sh.appendRow(BASE_HEADER);
-    headerRow = BASE_HEADER.slice();
-  } else {
-    headerRow = d[0].map(String);
-  }
+  // ヘッダー行を取得（空なら基本ヘッダーを書き込む）
+  const headerRow = (d.length === 0)
+    ? (sh.appendRow(HEADER), HEADER.slice())
+    : d[0].map(String);
 
-  // 商品列をヘッダーに追加（新商品があれば末尾に追加）
+  // 新商品列があればヘッダーに追加
   Object.keys(ratesMap).forEach(function(key) {
     if (headerRow.indexOf(key) < 0) {
       headerRow.push(key);
@@ -5034,9 +5017,9 @@ function saveCustomerToSheet(c) {
     }
   });
 
-  // 基本行＋商品別掛率列（末尾）を組み立て
+  // 最終行 = 基本23列 + 商品別掛率
   const row = baseRow.slice();
-  for (let col = BASE_HEADER.length; col < headerRow.length; col++) {
+  for (let col = 23; col < headerRow.length; col++) {
     row.push(ratesMap[headerRow[col]] || '');
   }
 
